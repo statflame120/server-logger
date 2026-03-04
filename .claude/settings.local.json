@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unzip:*)",
+      "Bash(./gradlew build:*)",
+      "WebFetch(domain:docs.fabricmc.net)",
+      "WebFetch(domain:maven.fabricmc.net)",
+      "WebSearch",
+      "WebFetch(domain:wiki.fabricmc.net)",
+      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/jar\" tf:*)",
+      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/javap\":*)",
+      "Bash(jar tf:*)",
+      "Bash(python3:*)",
+      "Bash(java:*)",
+      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/javap.exe\":*)",
+      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/jar.exe\" tf:*)"
+    ]
+  }
+}

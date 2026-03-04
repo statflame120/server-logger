@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.serverlogger.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"ClientPacketListenerMixin",
+		"ClientCommonListenerMixin",
+		"accessor.ClientCommonListenerAccessor",
+		"TitleScreenMixin",
+		"ScreenAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
