@@ -57,11 +57,15 @@ A two-panel layout showing full information for one server.
 └─────────────────────────────────────────────────┘
 ```
 
+<img width="1917" height="1079" alt="image" src="https://github.com/user-attachments/assets/5b08e76e-45f9-4f56-97ab-ce721ad12a90" />
+
+
 - **Scroll** over each panel independently with the mouse wheel
 - **Import** — opens `.minecraft/server-logs/` in the OS file manager
 - **Copy Plugins** — copies the full plugin list to clipboard as a comma-separated string
 
 ### Glossary Editor screen
+<img width="1916" height="1079" alt="image" src="https://github.com/user-attachments/assets/768d82d7-3ddf-4f78-aad7-8c081a6bc6d5" />
 
 Map custom command names to plugin names. Changes take effect immediately for future scans.
 
