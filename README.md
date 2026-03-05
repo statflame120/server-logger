@@ -56,7 +56,7 @@ A two-panel layout showing full information for one server.
 │  [Import]   [Copy Plugins]   [Back]             │  ← Footer
 └─────────────────────────────────────────────────┘
 ```
-Demonstration:
+
 <img width="1917" height="1079" alt="image" src="https://github.com/user-attachments/assets/5b08e76e-45f9-4f56-97ab-ce721ad12a90" />
 
 
