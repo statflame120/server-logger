@@ -8,6 +8,7 @@ import net.minecraft.network.chat.Component;
 
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.Locale;
 
 public class ServerDataCollector {
 
@@ -62,7 +63,9 @@ public class ServerDataCollector {
     }
 
     public void onPluginsDetected(List<String> detectedPlugins) {
-        plugins = detectedPlugins;
+        Set<String> seen = new LinkedHashSet<>();
+        for (String p : detectedPlugins) seen.add(p.toLowerCase(Locale.ROOT));
+        plugins = new ArrayList<>(seen);
         plugins.sort(String.CASE_INSENSITIVE_ORDER);
         pluginsReceived = true;
 

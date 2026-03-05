@@ -40,11 +40,10 @@ public class ServerDetailScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-
         renderHeader(graphics);
-        renderScrollableContent(graphics);
         renderFooterLine(graphics);
+        super.render(graphics, mouseX, mouseY, partialTick);
+        renderScrollableContent(graphics);
     }
 
     private void renderHeader(GuiGraphics graphics) {
@@ -183,6 +182,11 @@ public class ServerDetailScreen extends Screen {
         }
         h += 14 + Math.max(1, worldLines) * 11;
         return h;
+    }
+
+    @Override
+    public void onClose() {
+        minecraft.setScreen(parent);
     }
 
     @Override

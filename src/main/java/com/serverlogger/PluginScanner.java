@@ -41,8 +41,8 @@ public class PluginScanner {
         commandTreePlugins.clear();
         versionAlias = null;
 
-        PluginDictionary dict = (ServerLoggerMod.INSTANCE != null)
-                ? ServerLoggerMod.INSTANCE.pluginDictionary : null;
+        PluginGlossary dict = (ServerLoggerMod.INSTANCE != null)
+                ? ServerLoggerMod.INSTANCE.pluginGlossary : null;
 
         dispatcher.getRoot().getChildren().forEach(node -> {
             String name = node.getName();

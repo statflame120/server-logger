@@ -14,6 +14,17 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
     private final ServerLogScreen parentScreen;
     private long lastClickTime = 0;
     private Entry lastClickedEntry = null;
+    private Runnable selectionListener;
+
+    public void setSelectionListener(Runnable listener) {
+        this.selectionListener = listener;
+    }
+
+    @Override
+    public void setSelected(Entry entry) {
+        super.setSelected(entry);
+        if (selectionListener != null) selectionListener.run();
+    }
 
     public ServerListWidget(ServerLogScreen parentScreen, Minecraft mc, int width, int height, int top, int itemHeight) {
         super(mc, width, height, top, itemHeight);
@@ -87,6 +98,17 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
         @Override
         public Component getNarration() {
             return Component.literal(data.getDisplayName());
+        }
+    }
+
+    public int getSelectedIndex() {
+        Entry sel = getSelected();
+        return sel == null ? -1 : children().indexOf(sel);
+    }
+
+    public void selectAt(int index) {
+        if (index >= 0 && index < children().size()) {
+            setSelected(children().get(index));
         }
     }
 }

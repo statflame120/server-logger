@@ -24,7 +24,7 @@ public class ServerLoggerMod implements ClientModInitializer {
     public static ServerLoggerMod INSTANCE;
 
     public final ConfigManager       config           = new ConfigManager();
-    public final PluginDictionary    pluginDictionary = new PluginDictionary();
+    public final PluginGlossary    pluginGlossary = new PluginGlossary();
     public final PluginScanner       pluginScanner    = new PluginScanner();
     public final ServerDataCollector dataCollector    = new ServerDataCollector();
 
@@ -34,7 +34,7 @@ public class ServerLoggerMod implements ClientModInitializer {
     public void onInitializeClient() {
         INSTANCE = this;
         config.load();
-        pluginDictionary.load();
+        pluginGlossary.load();
 
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.server-logger.open_gui",
