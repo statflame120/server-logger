@@ -65,6 +65,7 @@ Demonstration:
 - **Copy Plugins** — copies the full plugin list to clipboard as a comma-separated string
 
 ### Glossary Editor screen
+<img width="1916" height="1079" alt="image" src="https://github.com/user-attachments/assets/768d82d7-3ddf-4f78-aad7-8c081a6bc6d5" />
 
 Map custom command names to plugin names. Changes take effect immediately for future scans.
 
@@ -123,7 +124,6 @@ Subsequent joins merge data: plugin lists keep the larger of the two sets, and n
 ```
 
 ### Glossary file
-<img width="1916" height="1079" alt="image" src="https://github.com/user-attachments/assets/768d82d7-3ddf-4f78-aad7-8c081a6bc6d5" />
 
 ```
 .minecraft/config/server-logger-glossary.json
