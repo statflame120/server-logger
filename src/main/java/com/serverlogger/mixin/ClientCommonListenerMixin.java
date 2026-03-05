@@ -22,6 +22,7 @@ public class ClientCommonListenerMixin {
                 ServerLoggerMod.INSTANCE.dataCollector.onServerBrand(brandPayload.brand());
                 ServerLoggerMod.LOGGER.info(
                         "[Server Logger] Server brand: {}", brandPayload.brand());
+                ServerLoggerMod.sendMessage("Server brand: " + brandPayload.brand());
             }
         } catch (Exception ignored) {}
     }
@@ -34,6 +35,7 @@ public class ClientCommonListenerMixin {
             ServerLoggerMod.INSTANCE.dataCollector.onResourcePack(packet.url());
             ServerLoggerMod.LOGGER.info(
                     "[Server Logger] Resource pack: {}", packet.url());
+            ServerLoggerMod.sendMessage("Resource pack: " + packet.url());
         } catch (Exception ignored) {}
     }
 }

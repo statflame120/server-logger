@@ -48,15 +48,21 @@ public class PluginScanner {
             String name = node.getName();
 
             String[] parts = name.split(":", 2);
-            if (parts.length == 2 && !parts[0].isEmpty()
-                    && !commandTreePlugins.contains(parts[0])) {
-                commandTreePlugins.add(parts[0]);
-            }
-
-            if (dict != null) {
-                String fromDict = dict.lookup(name);
-                if (fromDict != null && !commandTreePlugins.contains(fromDict)) {
-                    commandTreePlugins.add(fromDict);
+            if (parts.length == 2 && !parts[0].isEmpty()) {
+                // Namespaced command (e.g. "essentials:fly") — use only the namespace part
+                String ns = parts[0];
+                String resolved = (dict != null) ? dict.lookup(ns) : null;
+                String toAdd = (resolved != null) ? resolved : ns;
+                if (!commandTreePlugins.contains(toAdd)) {
+                    commandTreePlugins.add(toAdd);
+                }
+            } else {
+                // Plain command — look up in glossary
+                if (dict != null) {
+                    String fromDict = dict.lookup(name);
+                    if (fromDict != null && !commandTreePlugins.contains(fromDict)) {
+                        commandTreePlugins.add(fromDict);
+                    }
                 }
             }
 
@@ -64,10 +70,8 @@ public class PluginScanner {
                 versionAlias = name;
             }
         });
-
-        ServerLoggerMod.LOGGER.info(
-                "[Server Logger] Command tree scanned. Plugins found: {}  |  Version alias: {}",
-                commandTreePlugins, versionAlias);
+        ServerLoggerMod.sendMessage("Command tree scanned: " + commandTreePlugins.size()
+                + " plugin(s)" + (versionAlias != null ? " | alias: " + versionAlias : ""));
 
         if (versionAlias != null) {
             sendTabCompleteProbe(versionAlias);
@@ -89,6 +93,7 @@ public class PluginScanner {
                 }
             }
             ServerLoggerMod.LOGGER.info("[Server Logger] Tab-complete plugins: {}", tabCompletePlugins);
+            ServerLoggerMod.sendMessage("Tab-complete: " + tabCompletePlugins.size() + " plugin(s) — " + tabCompletePlugins);
         }
         finishScan();
     }
@@ -101,6 +106,7 @@ public class PluginScanner {
             ticks++;
             if (ticks >= 100) {
                 ServerLoggerMod.LOGGER.info("[Server Logger] Tab-complete probe timed out.");
+                ServerLoggerMod.sendMessage("Tab-complete probe timed out");
                 finishScan();
             }
         }
@@ -115,6 +121,7 @@ public class PluginScanner {
                 new ServerboundCommandSuggestionPacket(suggestionId, "/" + alias + " "));
         ServerLoggerMod.LOGGER.info(
                 "[Server Logger] Sent tab-complete probe for /{} (id={})", alias, suggestionId);
+        ServerLoggerMod.sendMessage("Sent tab-complete probe for /" + alias);
     }
 
     public void finishScan() {

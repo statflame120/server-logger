@@ -40,6 +40,7 @@ public class ClientPacketListenerMixin {
             ServerLoggerMod.INSTANCE.dataCollector.onDimension(dim);
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read dimension from login: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Could not read dimension from login: " + e.getMessage());
         }
     }
 

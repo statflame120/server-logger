@@ -25,6 +25,8 @@ public class ServerDetailScreen extends Screen {
     private final Screen       parent;
     private final ServerLogData data;
 
+    private java.util.Set<String> glossaryPluginNames = java.util.Collections.emptySet();
+
     private int pluginScroll  = 0;
     private int sidebarScroll = 0;
 
@@ -40,6 +42,12 @@ public class ServerDetailScreen extends Screen {
 
     @Override
     protected void init() {
+        // Build set of canonical plugin names that the glossary resolves to
+        if (com.serverlogger.ServerLoggerMod.INSTANCE != null) {
+            glossaryPluginNames = new java.util.HashSet<>(
+                    com.serverlogger.ServerLoggerMod.INSTANCE.pluginGlossary.getEntries().values());
+        }
+
         int bodyTop    = HEADER_H;
         int bodyBottom = height - FOOTER_H;
 
@@ -211,7 +219,10 @@ public class ServerDetailScreen extends Screen {
             int row = i / numCols;
             int ix  = plLeft + col * colW + 3;
             int iy  = gridTop + row * ITEM_H - pluginScroll + 1;
-            g.drawString(font, "\u25B8 " + fitText(data.plugins.get(i), maxTextPx), ix, iy, 0xFFDDDDDD);
+            String pluginName = data.plugins.get(i);
+            // Blue for glossary-identified plugins, light grey for everything else
+            int color = glossaryPluginNames.contains(pluginName) ? 0xFF5599FF : 0xFFDDDDDD;
+            g.drawString(font, "\u25B8 " + fitText(pluginName, maxTextPx), ix, iy, color);
         }
     }
 
@@ -262,7 +273,7 @@ public class ServerDetailScreen extends Screen {
         return s.isEmpty() ? ellipsis : s + ellipsis;
     }
 
-    /** Opens the server-logs directory in the OS file manager. */
+    // Opens the server-logs directory in the OS file manager.
     private void openLogsFolder() {
         try {
             Path logDir = FabricLoader.getInstance().getGameDir()
@@ -276,6 +287,7 @@ public class ServerDetailScreen extends Screen {
             pb.start();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not open logs folder: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Could not open logs folder: " + e.getMessage());
         }
     }
 
