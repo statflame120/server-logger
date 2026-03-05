@@ -165,5 +165,4 @@ Output jar: `build/libs/server-logger-<version>.jar`
 ```bash
 ./gradlew runClient
 ```
-
-Launches a development client with the mod loaded.
+Image credits to: sunriseking on https://unsplash.com  (https://unsplash.com/photos/city-skyline-during-night-time-ZM6RUTERdBg)
