@@ -3,6 +3,8 @@ package com.serverlogger;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.serverlogger.gui.ServerLogScreen;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -45,7 +47,6 @@ public class ServerLoggerMod implements ClientModInitializer {
 
         PayloadTypeRegistry.playS2C().register(MyPayload.ID, MyPayload.CODEC);
         ClientPlayNetworking.registerGlobalReceiver(MyPayload.ID, (payload, context) -> {
-            context.client().execute(() -> LOGGER.info("Custom payload: {}", payload.data()));
         });
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
@@ -67,7 +68,18 @@ public class ServerLoggerMod implements ClientModInitializer {
             }
         });
 
-        LOGGER.info("[Server Logger] Initialized for Minecraft 1.21.11");
+    }
+
+    // Sends a message to the player's chat if showMessages is enabled.
+    public static void sendMessage(String text) {
+        if (INSTANCE != null && INSTANCE.config.showMessages) {
+            Minecraft mc = Minecraft.getInstance();
+            mc.execute(() -> {
+                if (mc.player != null) {
+                    mc.player.displayClientMessage(Component.literal("\u00a77[Server Logger]\u00a7r " + text), false);
+                }
+            });
+        }
     }
 
     public record MyPayload(String data) implements CustomPacketPayload {

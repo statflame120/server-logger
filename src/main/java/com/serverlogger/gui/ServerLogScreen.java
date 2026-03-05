@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 public class ServerLogScreen extends Screen {
 
     private static final String[] FILTER_MODES = {"All", "Name", "Plugin", "Software"};
+    private static final int HEADER_H = 48;
+    private static final int FOOTER_H = 36;
 
     private record RemovedServer(Path filePath, String jsonContent) {}
 
@@ -38,6 +40,9 @@ public class ServerLogScreen extends Screen {
     private EditBox searchBox;
     private int filterIndex = 0;
 
+    private int filteredCount = 0;
+    private int totalCount    = 0;
+
     private Button removeBtn;
     private Button undoBtn;
 
@@ -49,29 +54,39 @@ public class ServerLogScreen extends Screen {
     @Override
     protected void init() {
         allEntries = ServerLogReader.readAll();
+        totalCount = allEntries.size();
 
         int cx = width / 2;
 
-        searchBox = new EditBox(font, cx - 150, 22, 155, 20, Component.literal("Search..."));
+        // Search box
+        searchBox = new EditBox(font, cx - 160, 24, 140, 20, Component.literal("Search..."));
         searchBox.setHint(Component.literal("Search..."));
         searchBox.setResponder(text -> refreshList());
         addRenderableWidget(searchBox);
 
+        // Filter mode cycle button
         addRenderableWidget(Button.builder(Component.literal("Filter: " + FILTER_MODES[filterIndex]), btn -> {
             filterIndex = (filterIndex + 1) % FILTER_MODES.length;
             btn.setMessage(Component.literal("Filter: " + FILTER_MODES[filterIndex]));
             refreshList();
-        }).bounds(cx + 10, 22, 65, 20).build());
+        }).bounds(cx - 15, 24, 65, 20).build());
 
+        // Glossary button
         addRenderableWidget(Button.builder(Component.literal("Glossary"), btn ->
                 minecraft.setScreen(new GlossaryEditorScreen(this))
-        ).bounds(cx + 80, 22, 65, 20).build());
+        ).bounds(cx + 55, 24, 65, 20).build());
 
-        listWidget = new ServerListWidget(this, minecraft, width, height - 96, 48, 36);
+        // Options button — top-right corner
+        addRenderableWidget(Button.builder(Component.literal("Options"), btn ->
+                minecraft.setScreen(new OptionsScreen(this))
+        ).bounds(width - 82, 8, 78, 18).build());
+
+        // Server list widget — body between header and footer
+        listWidget = new ServerListWidget(this, minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 36);
         listWidget.setSelectionListener(this::updateButtonStates);
         addRenderableWidget(listWidget);
 
-        int btnY = height - 30;
+        int btnY = height - FOOTER_H + 8;
 
         addRenderableWidget(Button.builder(Component.literal("Add"), btn ->
                 minecraft.setScreen(new AddServerScreen(this))
@@ -130,6 +145,8 @@ public class ServerLogScreen extends Screen {
             }).collect(Collectors.toList());
         }
 
+        filteredCount = filtered.size();
+        totalCount    = allEntries.size();
         listWidget.updateEntries(filtered);
         updateButtonStates();
     }
@@ -151,6 +168,7 @@ public class ServerLogScreen extends Screen {
             Files.deleteIfExists(filePath);
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to delete log file: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to delete log file: " + e.getMessage());
         }
 
         allEntries.remove(data);
@@ -169,7 +187,7 @@ public class ServerLogScreen extends Screen {
             Files.writeString(removed.filePath(), removed.jsonContent(),
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Undo failed: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Undo failed: " + e.getMessage());
         }
         allEntries = ServerLogReader.readAll();
         refreshList();
@@ -186,8 +204,25 @@ public class ServerLogScreen extends Screen {
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // Body background
+        g.fill(0, HEADER_H, width, height - FOOTER_H, 0xAA000010);
+        // Header panel
+        g.fill(0, 0, width, HEADER_H, 0xCC050510);
+        g.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
+        // Footer panel
+        g.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
+        g.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
+
+        super.render(g, mouseX, mouseY, partialTick);
+
+        // Title
+        g.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
+
+        // Filter counter "(x / total)" — right-aligned just to the left of the search box
+        String counter = filteredCount + " / " + totalCount;
+        int counterY = searchBox.getY() + (searchBox.getHeight() - font.lineHeight) / 2;
+        int counterX = searchBox.getX() - font.width(counter) - 5;
+        g.drawString(font, counter, counterX, counterY, 0xFF888888, false);
     }
 }

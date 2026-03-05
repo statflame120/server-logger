@@ -19,31 +19,23 @@ public class ServerLogReader {
         List<ServerLogData> results = new ArrayList<>();
         Path logDir = FabricLoader.getInstance().getGameDir()
                 .resolve(ServerLoggerMod.INSTANCE.config.logFolder);
-
-        ServerLoggerMod.LOGGER.info("[Server Logger] Reading logs from: {} (exists={})",
-                logDir.toAbsolutePath(), Files.isDirectory(logDir));
-
         if (!Files.isDirectory(logDir)) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Log directory does not exist: {}", logDir.toAbsolutePath());
+            ServerLoggerMod.sendMessage("Log directory does not exist: " + logDir.toAbsolutePath());
             return results;
         }
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(logDir, "*.json")) {
             for (Path file : stream) {
-                ServerLoggerMod.LOGGER.info("[Server Logger] Found log file: {}", file.getFileName());
                 try (Reader r = Files.newBufferedReader(file)) {
                     JsonObject root = JsonParser.parseReader(r).getAsJsonObject();
                     results.add(new ServerLogData(file.getFileName().toString(), root));
                 } catch (Exception e) {
-                    ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to parse log file {}: {}",
-                            file.getFileName(), e.getMessage());
+                    ServerLoggerMod.sendMessage("Failed to parse log file " + file.getFileName() + ": " + e.getMessage());
                 }
             }
         } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to read log directory: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to read log directory: " + e.getMessage());
         }
-
-        ServerLoggerMod.LOGGER.info("[Server Logger] Loaded {} server log entries", results.size());
 
         results.sort(Comparator.comparing((ServerLogData d) -> d.timestamp).reversed());
         return results;

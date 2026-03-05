@@ -39,6 +39,7 @@ public class ServerDataCollector {
             version = SharedConstants.getCurrentVersion().name();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read MC version: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Could not read MC version: " + e.getMessage());
         }
 
         try {
@@ -48,7 +49,7 @@ public class ServerDataCollector {
             port   = addr.getPort();
             domain = addr.getHostName();
         } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read server address: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Could not read server address: " + e.getMessage());
         }
 
         try {
@@ -60,6 +61,7 @@ public class ServerDataCollector {
         } catch (Exception ignored) {}
 
         ServerLoggerMod.LOGGER.info("[Server Logger] Joined server {}:{} ({}) software={}", ip, port, domain, software);
+        ServerLoggerMod.sendMessage("Joined " + ip + ":" + port + " (" + domain + ") — software: " + software);
     }
 
     public void onPluginsDetected(List<String> detectedPlugins) {
@@ -73,14 +75,20 @@ public class ServerDataCollector {
             String pluginStr = String.join(", ", plugins);
             int count = plugins.size();
             Minecraft mc = Minecraft.getInstance();
+            ConfigManager cfg = ServerLoggerMod.INSTANCE.config;
             mc.execute(() -> {
-                mc.keyboardHandler.setClipboard(pluginStr);
-                SystemToast.add(
-                        mc.getToastManager(),
-                        SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                        Component.literal("Server Logger"),
-                        Component.literal("Copied " + count + " plugin" + (count != 1 ? "s" : "") + " to clipboard")
-                );
+                if (cfg.autoClipboard) {
+                    mc.keyboardHandler.setClipboard(pluginStr);
+                }
+                if (cfg.showToasts) {
+                    SystemToast.add(
+                            mc.getToastManager(),
+                            SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
+                            Component.literal("Server Logger"),
+                            Component.literal("Detected " + count + " plugin" + (count != 1 ? "s" : "")
+                                    + (cfg.autoClipboard ? " (copied to clipboard)" : ""))
+                    );
+                }
             });
         }
 

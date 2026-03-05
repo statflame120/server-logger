@@ -54,7 +54,7 @@ public class GlossaryEditorScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Import"), btn -> importFromFile())
                 .bounds(cx + 105, 25, 55, 20).build());
 
-        listWidget = new GlossaryListWidget(minecraft, width, height - 90, 50, 22);
+        listWidget = new GlossaryListWidget(minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 22);
         listWidget.updateEntries(editedEntries);
         listWidget.setSelectionListener(this::updateButtonStates);
         addRenderableWidget(listWidget);
@@ -128,6 +128,7 @@ public class GlossaryEditorScreen extends Screen {
             pb.start();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to open config directory: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to open config directory: " + e.getMessage());
         }
     }
 
@@ -169,8 +170,20 @@ public class GlossaryEditorScreen extends Screen {
         minecraft.setScreen(parent);
     }
 
+    private static final int HEADER_H = 50;
+    private static final int FOOTER_H = 36;
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Body background
+        graphics.fill(0, HEADER_H, width, height - FOOTER_H, 0xAA000010);
+        // Header panel
+        graphics.fill(0, 0, width, HEADER_H, 0xCC050510);
+        graphics.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
+        // Footer panel
+        graphics.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
+        graphics.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
+
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
         graphics.drawString(font, "Command:", width / 2 - 215, 13, 0xFFAAAAAA);

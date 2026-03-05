@@ -15,6 +15,7 @@ public class PluginGlossary {
     private final Map<String, String> entries = new LinkedHashMap<>();
 
     private static final List<Map.Entry<String, String>> DEFAULT_ENTRIES = List.of(
+            //ADD AS MANY AS YOU WANT TO
             Map.entry("lp",                    "luckperms"),
             Map.entry("luckperms",             "luckperms"),
             Map.entry("pex",                   "permissionsex"),
@@ -97,13 +98,15 @@ public class PluginGlossary {
 
     public void load() {
         entries.clear();
-        for (Map.Entry<String, String> e : DEFAULT_ENTRIES) {
-            entries.put(e.getKey(), e.getValue());
-        }
         if (!Files.exists(DICT_PATH)) {
+            // First run: seed with defaults then persist
+            for (Map.Entry<String, String> e : DEFAULT_ENTRIES) {
+                entries.put(e.getKey(), e.getValue());
+            }
             save();
             return;
         }
+
         try (Reader r = Files.newBufferedReader(DICT_PATH)) {
             JsonObject obj = JsonParser.parseReader(r).getAsJsonObject();
             if (obj.has("entries")) {
@@ -114,6 +117,7 @@ public class PluginGlossary {
             }
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to load glossary: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to load glossary: " + e.getMessage());
         }
     }
 
@@ -125,7 +129,7 @@ public class PluginGlossary {
             root.add("entries", entriesObj);
             Files.writeString(DICT_PATH, new GsonBuilder().setPrettyPrinting().create().toJson(root));
         } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to save glossary: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to save glossary: " + e.getMessage());
         }
     }
 

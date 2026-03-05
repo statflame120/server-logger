@@ -14,6 +14,9 @@ import java.time.LocalDate;
 
 public class AddServerScreen extends Screen {
 
+    private static final int HEADER_H = 36;
+    private static final int FOOTER_H = 36;
+
     private final Screen parent;
     private EditBox ipBox;
     private EditBox portBox;
@@ -26,8 +29,9 @@ public class AddServerScreen extends Screen {
 
     @Override
     protected void init() {
-        int cx = width / 2;
-        int startY = height / 2 - 45;
+        int cx     = width / 2;
+        int bodyMid = HEADER_H + (height - HEADER_H - FOOTER_H) / 2;
+        int startY  = bodyMid - 45;
 
         ipBox = new EditBox(font, cx - 100, startY, 200, 20, Component.literal("IP"));
         ipBox.setHint(Component.literal("IP Address"));
@@ -86,14 +90,37 @@ public class AddServerScreen extends Screen {
                     StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to create server entry: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to create server entry: " + e.getMessage());
         }
 
         minecraft.setScreen(parent);
     }
 
     @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        super.render(graphics, mouseX, mouseY, partialTick);
-        graphics.drawCenteredString(font, "Add Server Entry", width / 2, height / 2 - 58, 0xFFFFFFFF);
+    public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // Body background
+        g.fill(0, HEADER_H, width, height - FOOTER_H, 0xAA000010);
+        // Header panel
+        g.fill(0, 0, width, HEADER_H, 0xCC050510);
+        g.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
+        // Footer panel
+        g.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
+        g.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
+
+        super.render(g, mouseX, mouseY, partialTick);
+        g.drawCenteredString(font, title, width / 2, 12, 0xFFFFFFFF);
+
+        // Field labels
+        int cx    = width / 2;
+        int bodyMid = HEADER_H + (height - HEADER_H - FOOTER_H) / 2;
+        int startY  = bodyMid - 45;
+        g.drawString(font, "IP Address:",      cx - 100, startY - 10,     0xFFAAAAAA, false);
+        g.drawString(font, "Port:",            cx - 100, startY + 15,     0xFFAAAAAA, false);
+        g.drawString(font, "Domain:",          cx - 100, startY + 40,     0xFFAAAAAA, false);
+    }
+
+    @Override
+    public void onClose() {
+        minecraft.setScreen(parent);
     }
 }

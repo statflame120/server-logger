@@ -84,6 +84,7 @@ public class JsonLogger {
                             && existingPlugins.size() >= pluginsArr.size()) {
                         ServerLoggerMod.LOGGER.info(
                                 "[Server Logger] No new data for {}, skipping write.", outFile.getFileName());
+                        ServerLoggerMod.sendMessage("No new data for " + outFile.getFileName() + ", skipping write");
                         return;
                     }
 
@@ -111,10 +112,10 @@ public class JsonLogger {
 
             String json = new GsonBuilder().setPrettyPrinting().create().toJson(root);
             Files.writeString(outFile, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            ServerLoggerMod.LOGGER.info("[Server Logger] Log written to {}", outFile);
+            ServerLoggerMod.sendMessage("Log saved: " + outFile.getFileName());
 
         } catch (IOException e) {
-            ServerLoggerMod.LOGGER.error("[Server Logger] Failed to write log: {}", e.getMessage());
+            ServerLoggerMod.sendMessage("Failed to write log: " + e.getMessage());
         }
     }
 }
