@@ -13,7 +13,8 @@
       "Bash(python3:*)",
       "Bash(java:*)",
       "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/javap.exe\":*)",
-      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/jar.exe\" tf:*)"
+      "Bash(\"/c/Program Files/Java/jdk-21.0.10/bin/jar.exe\" tf:*)",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }
