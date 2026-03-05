@@ -10,9 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-/**
- * Main server log list screen with search and filter functionality.
- */
 public class ServerLogScreen extends Screen {
 
     private static final String[] FILTER_MODES = {"All", "Name", "Plugin", "Software"};
@@ -32,24 +29,24 @@ public class ServerLogScreen extends Screen {
     protected void init() {
         allEntries = ServerLogReader.readAll();
 
-        // Search box
-        searchBox = new EditBox(font, width / 2 - 120, 22, 190, 20, Component.literal("Search..."));
+        searchBox = new EditBox(font, width / 2 - 150, 22, 155, 20, Component.literal("Search..."));
         searchBox.setHint(Component.literal("Search..."));
         searchBox.setResponder(text -> refreshList());
         addRenderableWidget(searchBox);
 
-        // Filter button
         addRenderableWidget(Button.builder(Component.literal("Filter: " + FILTER_MODES[filterIndex]), btn -> {
             filterIndex = (filterIndex + 1) % FILTER_MODES.length;
             btn.setMessage(Component.literal("Filter: " + FILTER_MODES[filterIndex]));
             refreshList();
-        }).bounds(width / 2 + 75, 22, 80, 20).build());
+        }).bounds(width / 2 + 10, 22, 70, 20).build());
 
-        // Server list widget
+        addRenderableWidget(Button.builder(Component.literal("Dictionary"), btn ->
+                minecraft.setScreen(new DictionaryEditorScreen(this))
+        ).bounds(width / 2 + 85, 22, 70, 20).build());
+
         listWidget = new ServerListWidget(this, minecraft, width, height - 96, 48, 36);
         addRenderableWidget(listWidget);
 
-        // Back button
         addRenderableWidget(Button.builder(Component.literal("Back"), btn -> {
             minecraft.setScreen(parent);
         }).bounds(width / 2 - 50, height - 30, 100, 20).build());
@@ -74,7 +71,7 @@ public class ServerLogScreen extends Screen {
                                 .anyMatch(p -> p.toLowerCase(Locale.ROOT).contains(query));
                     case "Software":
                         return data.software.toLowerCase(Locale.ROOT).contains(query);
-                    default: // "All"
+                    default:
                         return data.getDisplayName().toLowerCase(Locale.ROOT).contains(query)
                                 || data.plugins.stream()
                                         .anyMatch(p -> p.toLowerCase(Locale.ROOT).contains(query))

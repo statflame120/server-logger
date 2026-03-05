@@ -6,10 +6,12 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-/**
- * Detail view for a single server log entry.
- */
+import java.util.List;
+
 public class ServerDetailScreen extends Screen {
+
+    private static final int HEADER_H = 68;
+    private static final int FOOTER_H = 30;
 
     private final Screen parent;
     private final ServerLogData data;
@@ -18,96 +20,176 @@ public class ServerDetailScreen extends Screen {
     public ServerDetailScreen(Screen parent, ServerLogData data) {
         super(Component.literal("Server Detail"));
         this.parent = parent;
-        this.data = data;
+        this.data   = data;
     }
 
     @Override
     protected void init() {
-        int btnY = height - 30;
-        int centerX = width / 2;
+        int cx = width / 2;
+        int btnY = height - FOOTER_H + 5;
 
-        // Copy Plugins button
         addRenderableWidget(Button.builder(Component.literal("Copy Plugins"), btn -> {
-            String pluginStr = String.join(", ", data.plugins);
-            Minecraft.getInstance().keyboardHandler.setClipboard(pluginStr);
-        }).bounds(centerX - 110, btnY, 100, 20).build());
+            String s = String.join(", ", data.plugins);
+            Minecraft.getInstance().keyboardHandler.setClipboard(s);
+        }).bounds(cx - 115, btnY, 105, 20).build());
 
-        // Back button
         addRenderableWidget(Button.builder(Component.literal("Back"), btn -> {
             minecraft.setScreen(parent);
-        }).bounds(centerX + 10, btnY, 100, 20).build());
+        }).bounds(cx + 10, btnY, 105, 20).build());
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
 
-        int x = 20;
-        int y = 15 - scrollOffset;
-        int col1 = 0xFFAAAAAA; // label color
-        int col2 = 0xFFFFFFFF; // value color
-        int sectionColor = 0xFF55FFFF; // section header color
+        renderHeader(graphics);
+        renderScrollableContent(graphics);
+        renderFooterLine(graphics);
+    }
 
-        // Title
-        graphics.drawCenteredString(font, data.getDisplayName(), width / 2, y, 0xFFFFFFFF);
-        y += 18;
+    private void renderHeader(GuiGraphics graphics) {
+        graphics.fill(0, 0, width, HEADER_H, 0xCC050510);
+        graphics.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
 
-        // ── Server Info ────────────────────────────────────
-        graphics.drawString(font, "Server Info", x, y, sectionColor);
-        y += 14;
-        y = drawField(graphics, x, y, "IP", data.ip, col1, col2);
-        y = drawField(graphics, x, y, "Port", String.valueOf(data.port), col1, col2);
-        y = drawField(graphics, x, y, "Domain", data.domain, col1, col2);
-        y = drawField(graphics, x, y, "Software", data.software, col1, col2);
-        y = drawField(graphics, x, y, "Version", data.version, col1, col2);
-        y += 6;
+        String displayName = data.getDisplayName();
+        graphics.drawCenteredString(font, Component.literal(displayName)
+                        .withStyle(s -> s.withColor(0xFFFF55).withBold(true)),
+                width / 2, 6, 0xFFFFFFFF);
 
-        // ── World ──────────────────────────────────────────
-        graphics.drawString(font, "World", x, y, sectionColor);
-        y += 14;
-        y = drawField(graphics, x, y, "Dimension", data.dimension, col1, col2);
-        y = drawField(graphics, x, y, "Resource Pack", data.resourcePack != null ? data.resourcePack : "None", col1, col2);
-        y += 6;
+        int row1 = 22;
+        int row2 = 34;
+        int row3 = 46;
+        int col2 = width / 2 + 4;
 
-        // ── Plugins ────────────────────────────────────────
-        graphics.drawString(font, "Plugins (" + data.plugins.size() + ")", x, y, sectionColor);
-        y += 14;
+        drawLabel(graphics, "IP",       data.ip + ":" + data.port, 8, row1, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(graphics, "Software", data.software,              col2, row1, 0xFFAAAAAA, 0xFFFFFFFF);
+
+        drawLabel(graphics, "Version",  data.version,               8, row2, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(graphics, "Logged",   data.timestamp,             col2, row2, 0xFFAAAAAA, 0xFFFFFFFF);
+
+        if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
+            drawLabel(graphics, "Domain", data.domain, 8, row3, 0xFFAAAAAA, 0xFF88AAFF);
+        }
+        drawLabel(graphics, "Plugins", String.valueOf(data.plugins.size()), col2, row3, 0xFFAAAAAA, 0xFF55FF55);
+    }
+
+    private void drawLabel(GuiGraphics g, String label, String value, int x, int y, int lc, int vc) {
+        g.drawString(font, label + ": ", x, y, lc);
+        int lw = font.width(label + ": ");
+        g.drawString(font, value, x + lw, y, vc);
+    }
+
+    private void renderScrollableContent(GuiGraphics graphics) {
+        int contentTop    = HEADER_H;
+        int contentBottom = height - FOOTER_H;
+
+        graphics.enableScissor(0, contentTop, width, contentBottom);
+
+        int x = 10;
+        int y = contentTop + 6 - scrollOffset;
+
+        y = renderPluginPanel(graphics, x, y);
+        y += 8;
+        y = renderSection(graphics, x, y, "Detected Addresses", data.detectedAddresses, 0xFF88AAFF, 0xFFCCCCCC);
+        y += 8;
+        y = renderWorldsSection(graphics, x, y);
+
+        graphics.disableScissor();
+    }
+
+    private int renderPluginPanel(GuiGraphics graphics, int x, int y) {
+        int panelW = width - x * 2;
+        int innerLines = Math.max(1, data.plugins.size());
+        int panelH = 15 + innerLines * 11 + 6;
+
+        graphics.fill(x, y, x + panelW, y + panelH, 0x88001830);
+        graphics.fill(x, y, x + panelW, y + 14, 0xAA003060);
+        graphics.fill(x, y + 14, x + panelW, y + 15, 0xFF004488);
+
+        graphics.drawString(font,
+                "Plugins  (" + data.plugins.size() + ")",
+                x + 5, y + 3, 0xFF55AAFF);
+
+        y += 16;
+
         if (data.plugins.isEmpty()) {
-            graphics.drawString(font, "  None detected", x, y, 0xFF666666);
+            graphics.drawString(font, "  None detected", x + 5, y, 0xFF555555);
             y += 11;
         } else {
             for (String plugin : data.plugins) {
-                graphics.drawString(font, "  " + plugin, x, y, col2);
+                graphics.drawString(font, "  \u25B8 " + plugin, x + 5, y, 0xFFEEEEEE);
                 y += 11;
             }
         }
         y += 6;
+        return y;
+    }
 
-        // ── Detected Addresses ─────────────────────────────
-        graphics.drawString(font, "Detected Addresses (" + data.detectedAddresses.size() + ")", x, y, sectionColor);
+    private int renderSection(GuiGraphics graphics, int x, int y,
+                              String title, List<String> items,
+                              int titleColor, int itemColor) {
+        graphics.drawString(font, title + " (" + items.size() + ")", x, y, titleColor);
+        graphics.fill(x, y + 11, x + font.width(title + " (" + items.size() + ")"), y + 12, titleColor & 0x88FFFFFF);
         y += 14;
-        if (data.detectedAddresses.isEmpty()) {
-            graphics.drawString(font, "  None detected", x, y, 0xFF666666);
+        if (items.isEmpty()) {
+            graphics.drawString(font, "  None", x + 4, y, 0xFF555555);
             y += 11;
         } else {
-            for (String addr : data.detectedAddresses) {
-                graphics.drawString(font, "  " + addr, x, y, col2);
+            for (String item : items) {
+                graphics.drawString(font, "  " + item, x + 4, y, itemColor);
                 y += 11;
             }
         }
+        return y;
     }
 
-    private int drawField(GuiGraphics graphics, int x, int y, String label, String value, int labelColor, int valueColor) {
-        graphics.drawString(font, "  " + label + ": ", x, y, labelColor);
-        int labelWidth = font.width("  " + label + ": ");
-        graphics.drawString(font, value, x + labelWidth, y, valueColor);
-        return y + 11;
+    private int renderWorldsSection(GuiGraphics graphics, int x, int y) {
+        graphics.drawString(font, "Worlds Visited (" + data.worlds.size() + ")", x, y, 0xFFFFAA55);
+        graphics.fill(x, y + 11, x + font.width("Worlds Visited (" + data.worlds.size() + ")"), y + 12, 0x88FFAA55);
+        y += 14;
+        if (data.worlds.isEmpty()) {
+            graphics.drawString(font, "  None recorded", x + 4, y, 0xFF555555);
+            y += 11;
+        } else {
+            for (ServerLogData.WorldSession ws : data.worlds) {
+                String line = "  " + ws.dimension;
+                if (ws.resourcePack != null) line += "  [pack]";
+                graphics.drawString(font, line, x + 4, y, 0xFFCCCCCC);
+                y += 11;
+                if (ws.resourcePack != null) {
+                    String short_pack = ws.resourcePack.length() > 50
+                            ? ws.resourcePack.substring(0, 47) + "..." : ws.resourcePack;
+                    graphics.drawString(font, "      " + short_pack, x + 4, y, 0xFF888888);
+                    y += 11;
+                }
+            }
+        }
+        return y;
+    }
+
+    private void renderFooterLine(GuiGraphics graphics) {
+        graphics.fill(0, height - FOOTER_H, width, height - FOOTER_H + 1, 0xFF334466);
+        graphics.fill(0, height - FOOTER_H + 1, width, height, 0xCC050510);
+    }
+
+    private int getContentHeight() {
+        int h = 12;
+        h += 15 + Math.max(1, data.plugins.size()) * 11 + 6 + 8;
+        h += 14 + Math.max(1, data.detectedAddresses.size()) * 11 + 8;
+        int worldLines = 0;
+        for (ServerLogData.WorldSession ws : data.worlds) {
+            worldLines++;
+            if (ws.resourcePack != null) worldLines++;
+        }
+        h += 14 + Math.max(1, worldLines) * 11;
+        return h;
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        int maxScroll = Math.max(0, getContentHeight() - (height - HEADER_H - FOOTER_H));
         scrollOffset -= (int) (verticalAmount * 10);
-        if (scrollOffset < 0) scrollOffset = 0;
+        scrollOffset = Math.max(0, Math.min(scrollOffset, maxScroll));
         return true;
     }
 }

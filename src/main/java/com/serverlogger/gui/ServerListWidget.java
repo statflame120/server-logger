@@ -9,9 +9,6 @@ import net.minecraft.network.chat.Component;
 
 import java.util.List;
 
-/**
- * Scrollable list widget that displays server log entries.
- */
 public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry> {
 
     private final ServerLogScreen parentScreen;
@@ -70,14 +67,11 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
             int left = getContentX();
             int top = getContentY();
 
-            // Server display name (white)
             graphics.drawString(minecraft.font, data.getDisplayName(), left + 3, top + 2, 0xFFFFFFFF);
 
-            // Software + plugin count (gray)
             String info = data.software + " | " + data.plugins.size() + " plugin" + (data.plugins.size() != 1 ? "s" : "");
             graphics.drawString(minecraft.font, info, left + 3, top + 13, 0xFFAAAAAA);
 
-            // Timestamp (dark gray)
             graphics.drawString(minecraft.font, data.timestamp, left + 3, top + 24, 0xFF666666);
         }
 

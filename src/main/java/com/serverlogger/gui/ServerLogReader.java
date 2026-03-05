@@ -13,9 +13,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Reads and parses all JSON log files from the server-logs directory.
- */
 public class ServerLogReader {
 
     public static List<ServerLogData> readAll() {
@@ -48,7 +45,6 @@ public class ServerLogReader {
 
         ServerLoggerMod.LOGGER.info("[Server Logger] Loaded {} server log entries", results.size());
 
-        // Sort by timestamp descending (newest first)
         results.sort(Comparator.comparing((ServerLogData d) -> d.timestamp).reversed());
         return results;
     }

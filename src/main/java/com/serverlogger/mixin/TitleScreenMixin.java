@@ -12,9 +12,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Injects a "Logs" button on the title screen next to the Multiplayer button.
- */
 @Mixin(TitleScreen.class)
 public class TitleScreenMixin {
 
@@ -22,7 +19,6 @@ public class TitleScreenMixin {
     private void serverLogger$addLogButton(CallbackInfo ci) {
         Screen screen = (Screen) (Object) this;
 
-        // Find the Multiplayer button
         Button multiplayerButton = null;
         for (GuiEventListener child : screen.children()) {
             if (child instanceof Button btn) {

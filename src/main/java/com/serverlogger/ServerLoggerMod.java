@@ -23,9 +23,10 @@ public class ServerLoggerMod implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     public static ServerLoggerMod INSTANCE;
 
-    public final ConfigManager       config        = new ConfigManager();
-    public final PluginScanner       pluginScanner = new PluginScanner();
-    public final ServerDataCollector dataCollector = new ServerDataCollector();
+    public final ConfigManager       config           = new ConfigManager();
+    public final PluginDictionary    pluginDictionary = new PluginDictionary();
+    public final PluginScanner       pluginScanner    = new PluginScanner();
+    public final ServerDataCollector dataCollector    = new ServerDataCollector();
 
     private KeyMapping openGuiKey;
 
@@ -33,8 +34,8 @@ public class ServerLoggerMod implements ClientModInitializer {
     public void onInitializeClient() {
         INSTANCE = this;
         config.load();
+        pluginDictionary.load();
 
-        // ── Keybind: Z to open server logs GUI ─────────────────────────────
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.server-logger.open_gui",
                 InputConstants.Type.KEYSYM,
@@ -42,32 +43,25 @@ public class ServerLoggerMod implements ClientModInitializer {
                 KeyMapping.Category.MISC
         ));
 
-        // Register our custom payload type (required even if unused for now)
         PayloadTypeRegistry.playS2C().register(MyPayload.ID, MyPayload.CODEC);
         ClientPlayNetworking.registerGlobalReceiver(MyPayload.ID, (payload, context) -> {
             context.client().execute(() -> LOGGER.info("Custom payload: {}", payload.data()));
         });
 
-        // ── Server join ───────────────────────────────────────────────────
-        // In 1.21.11 the JOIN callback is (handler, sender, client)
-        // where sender is PacketSender, NOT ClientPlayNetworking.Context
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             dataCollector.onServerJoin(handler, client);
             pluginScanner.onServerJoin(client);
         });
 
-        // ── Disconnect ────────────────────────────────────────────────────
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             dataCollector.reset();
             pluginScanner.reset();
         });
 
-        // ── Tick ──────────────────────────────────────────────────────────
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             pluginScanner.tick(client);
             dataCollector.tick(client);
 
-            // Open GUI keybind (Z key)
             if (openGuiKey.consumeClick()) {
                 client.setScreen(new ServerLogScreen(null));
             }
@@ -76,7 +70,6 @@ public class ServerLoggerMod implements ClientModInitializer {
         LOGGER.info("[Server Logger] Initialized for Minecraft 1.21.11");
     }
 
-    // ── Custom packet payload (boilerplate required by Fabric 0.141+) ─────
     public record MyPayload(String data) implements CustomPacketPayload {
 
         public static final CustomPacketPayload.Type<MyPayload> ID =

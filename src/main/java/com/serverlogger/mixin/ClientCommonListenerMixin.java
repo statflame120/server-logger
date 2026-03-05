@@ -10,15 +10,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Intercepts packets handled by the common (non-game-specific) layer:
- *  - Server brand custom payload
- *  - Resource pack push
- */
 @Mixin(ClientCommonPacketListenerImpl.class)
 public class ClientCommonListenerMixin {
 
-    // ── Server brand ──────────────────────────────────────────────────────
     @Inject(method = "handleCustomPayload", at = @At("HEAD"))
     private void serverLogger$onCustomPayload(ClientboundCustomPayloadPacket packet,
                                               CallbackInfo ci) {
@@ -32,8 +26,6 @@ public class ClientCommonListenerMixin {
         } catch (Exception ignored) {}
     }
 
-    // ── Resource pack URL ─────────────────────────────────────────────────
-    // If this fails to compile, try "handleResourcePacks" instead
     @Inject(method = "handleResourcePackPush", at = @At("HEAD"))
     private void serverLogger$onResourcePack(ClientboundResourcePackPushPacket packet,
                                              CallbackInfo ci) {

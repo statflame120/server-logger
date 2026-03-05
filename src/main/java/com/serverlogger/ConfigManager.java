@@ -6,25 +6,17 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.io.*;
 import java.nio.file.*;
 
-/**
- * Reads/writes  .minecraft/config/server-logger.json
- *
- * Default config is created automatically on first launch.
- */
 public class ConfigManager {
 
     private static final Path CONFIG_PATH =
             FabricLoader.getInstance().getConfigDir().resolve("server-logger.json");
 
-    // ── Configurable fields ───────────────────────────────────────────────
     public boolean enabled       = true;
     public String  logFolder     = "server-logs";
 
-    // ─────────────────────────────────────────────────────────────────────
-
     public void load() {
         if (!Files.exists(CONFIG_PATH)) {
-            save();   // write defaults
+            save();
             return;
         }
         try (Reader r = Files.newBufferedReader(CONFIG_PATH)) {
