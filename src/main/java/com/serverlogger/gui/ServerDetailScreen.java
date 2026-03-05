@@ -14,7 +14,6 @@ import java.util.List;
 
 public class ServerDetailScreen extends Screen {
 
-    // ── Layout constants ──────────────────────────────────────────────────
     private static final int HEADER_H  = 54;  // two-row metadata bar
     private static final int FOOTER_H  = 36;  // action bar (extra padding avoids taskbar)
     private static final int SIDEBAR_W = 170; // fixed-width left column
@@ -26,16 +25,12 @@ public class ServerDetailScreen extends Screen {
     private final Screen       parent;
     private final ServerLogData data;
 
-    // ── Independent scroll offsets ────────────────────────────────────────
     private int pluginScroll  = 0;
     private int sidebarScroll = 0;
 
-    // ── Panel bounds (derived in init, reused for scroll hit-testing) ─────
     private int sbLeft, sbTop, sbRight, sbBottom; // sidebar
     private int plLeft, plTop, plRight, plBottom; // plugin panel
     private int numCols;                           // 3 or 4 grid columns
-
-    // ─────────────────────────────────────────────────────────────────────
 
     public ServerDetailScreen(Screen parent, ServerLogData data) {
         super(Component.literal("Server Detail"));
@@ -43,31 +38,23 @@ public class ServerDetailScreen extends Screen {
         this.data   = data;
     }
 
-    // ── Initialisation ────────────────────────────────────────────────────
-
     @Override
     protected void init() {
         int bodyTop    = HEADER_H;
         int bodyBottom = height - FOOTER_H;
 
-        // Sidebar occupies the left strip
         sbLeft   = PAD;
         sbRight  = PAD + SIDEBAR_W;
         sbTop    = bodyTop;
         sbBottom = bodyBottom;
 
-        // Plugin panel occupies the remainder
         plLeft   = sbRight + GAP;
         plRight  = width - PAD;
         plTop    = bodyTop;
         plBottom = bodyBottom;
 
-        // Column count: 4 on wide screens, 3 otherwise
         numCols = (plRight - plLeft) >= 280 ? 4 : 3;
 
-        // ── Footer buttons ─────────────────────────────────────────────────
-        // Three buttons centred in the footer: Import | Copy Plugins | Back
-        // Total button span = 60 + 5 + 100 + 5 + 60 = 230 px  →  ±115 from cx
         int cx   = width / 2;
         int btnY = height - FOOTER_H + 8;
 
@@ -86,11 +73,6 @@ public class ServerDetailScreen extends Screen {
                 .bounds(cx + 55, btnY, 60, 20).build());
     }
 
-    // ── Render entry point ────────────────────────────────────────────────
-    // Draw order: backgrounds → widgets (super) → content
-    // This ensures the footer/header fills are painted before buttons, so
-    // buttons are always visible on top of the dark backgrounds.
-
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderHeader(g);
@@ -98,20 +80,15 @@ public class ServerDetailScreen extends Screen {
         super.render(g, mouseX, mouseY, partialTick); // buttons drawn over backgrounds
         renderBody(g);
     }
-
-    // ── Header ────────────────────────────────────────────────────────────
-
     private void renderHeader(GuiGraphics g) {
         g.fill(0, 0, width, HEADER_H, 0xCC050510);
         g.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
 
-        // Title
         g.drawCenteredString(font,
                 Component.literal(data.getDisplayName())
                         .withStyle(s -> s.withColor(0xFFFF55).withBold(true)),
                 width / 2, 5, 0xFFFFFFFF);
 
-        // Three-column metadata layout across two rows
         int c1 = 8, c2 = width / 3, c3 = (2 * width) / 3;
 
         // Row 1
@@ -127,35 +104,30 @@ public class ServerDetailScreen extends Screen {
         drawLabel(g, "Plugins", String.valueOf(data.plugins.size()), c3, 30, 0xFFAAAAAA, 0xFF55FF55);
     }
 
-    // ── Footer ────────────────────────────────────────────────────────────
-
+    //footer
     private void renderFooter(GuiGraphics g) {
         g.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
         g.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
     }
 
-    // ── Body = left sidebar + right plugin grid ────────────────────────────
-
+    //left sidebar + right plugin grid
     private void renderBody(GuiGraphics g) {
-        // Vertical divider between the two panels
+        // Vertical divider
         g.fill(sbRight, sbTop + 4, sbRight + 1, sbBottom - 4, 0xFF334466);
 
-        // Left sidebar – all content scrolls together
+        // Left sidebar
         g.enableScissor(sbLeft, sbTop, sbRight, sbBottom);
         renderSidebar(g);
         g.disableScissor();
-
-        // Plugin panel header stays pinned (no scissor)
         renderPluginLabel(g);
 
-        // Plugin grid content scrolls below the pinned header
         int gridTop = plTop + LABEL_H;
         g.enableScissor(plLeft, gridTop, plRight, plBottom);
         renderPluginGrid(g, gridTop);
         g.disableScissor();
     }
 
-    // ── Left sidebar ──────────────────────────────────────────────────────
+    //left sidebar
 
     private void renderSidebar(GuiGraphics g) {
         int y = sbTop + PAD - sidebarScroll;
@@ -168,7 +140,6 @@ public class ServerDetailScreen extends Screen {
         renderWorldsSection(g, sbLeft, y);
     }
 
-    /** Renders a titled list of strings and returns the Y coordinate after the last item. */
     private int renderListSection(GuiGraphics g, int x, int y,
                                   String title, List<String> items,
                                   int titleColor, int lineColor, int itemColor) {
@@ -209,9 +180,7 @@ public class ServerDetailScreen extends Screen {
         }
     }
 
-    // ── Right plugin panel ────────────────────────────────────────────────
-
-    /** Pinned section label rendered above the scrollable grid. */
+    //right plugin panel
     private void renderPluginLabel(GuiGraphics g) {
         String heading = "Plugins (" + data.plugins.size() + ")";
         g.drawString(font, heading, plLeft + 2, plTop + 3, 0xFF55AAFF);
@@ -219,10 +188,6 @@ public class ServerDetailScreen extends Screen {
                 plLeft + 2 + font.width(heading), plTop + 14, 0x4455AAFF);
     }
 
-    /**
-     * Renders the multi-column plugin grid.
-     * {@code gridTop} is the first Y pixel inside the scissored content area.
-     */
     private void renderPluginGrid(GuiGraphics g, int gridTop) {
         if (data.plugins.isEmpty()) {
             g.drawString(font, "No plugins detected", plLeft + 4, gridTop + 4, 0xFF555555);
@@ -233,7 +198,6 @@ public class ServerDetailScreen extends Screen {
         int colW      = panelW / numCols;
         int totalRows = (data.plugins.size() + numCols - 1) / numCols;
 
-        // Alternating row-band backgrounds (drawn for all rows; scissor clips the invisible ones)
         for (int row = 0; row < totalRows; row++) {
             if (row % 2 == 0) {
                 int rowY = gridTop + row * ITEM_H - pluginScroll;
@@ -241,7 +205,6 @@ public class ServerDetailScreen extends Screen {
             }
         }
 
-        // Plugin text  – truncated to fit each column
         int maxTextPx = colW - font.width("\u25B8 ") - 6;
         for (int i = 0; i < data.plugins.size(); i++) {
             int col = i % numCols;
@@ -251,8 +214,6 @@ public class ServerDetailScreen extends Screen {
             g.drawString(font, "\u25B8 " + fitText(data.plugins.get(i), maxTextPx), ix, iy, 0xFFDDDDDD);
         }
     }
-
-    // ── Scrolling ─────────────────────────────────────────────────────────
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY,
@@ -286,15 +247,12 @@ public class ServerDetailScreen extends Screen {
         return Math.max(0, h - (sbBottom - sbTop));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────
-
     private void drawLabel(GuiGraphics g, String label, String value,
                            int x, int y, int lc, int vc) {
         g.drawString(font, label + ": ", x, y, lc);
         g.drawString(font, value, x + font.width(label + ": "), y, vc);
     }
 
-    /** Truncates {@code s} to fit within {@code maxPx} pixels, appending '\u2026' when cut. */
     private String fitText(String s, int maxPx) {
         if (font.width(s) <= maxPx) return s;
         String ellipsis = "\u2026";
@@ -310,7 +268,12 @@ public class ServerDetailScreen extends Screen {
             Path logDir = FabricLoader.getInstance().getGameDir()
                     .resolve(ServerLoggerMod.INSTANCE.config.logFolder);
             Files.createDirectories(logDir);
-            java.awt.Desktop.getDesktop().open(logDir.toFile());
+            String path = logDir.toAbsolutePath().toString();
+            String os   = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
+            ProcessBuilder pb = os.contains("win") ? new ProcessBuilder("explorer.exe", path)
+                              : os.contains("mac") ? new ProcessBuilder("open", path)
+                              :                      new ProcessBuilder("xdg-open", path);
+            pb.start();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not open logs folder: {}", e.getMessage());
         }

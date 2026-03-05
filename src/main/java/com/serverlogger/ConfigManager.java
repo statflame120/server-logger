@@ -21,13 +21,12 @@ public class ConfigManager {
         }
         try (Reader r = Files.newBufferedReader(CONFIG_PATH)) {
             JsonObject obj = JsonParser.parseReader(r).getAsJsonObject();
-            if (obj.has("enabled"))       enabled       = obj.get("enabled").getAsBoolean();
-            if (obj.has("logFolder"))     logFolder     = obj.get("logFolder").getAsString();
+            if (obj.has("enabled")) enabled = obj.get("enabled").getAsBoolean();
+            if (obj.has("logFolder")) logFolder = obj.get("logFolder").getAsString();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to load config, using defaults: {}", e.getMessage());
         }
     }
-
     public void save() {
         try {
             JsonObject obj = new JsonObject();

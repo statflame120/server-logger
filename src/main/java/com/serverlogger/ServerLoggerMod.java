@@ -37,7 +37,7 @@ public class ServerLoggerMod implements ClientModInitializer {
         pluginGlossary.load();
 
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
-                "key.server-logger.open_gui",
+                "Server Logger Menu",
                 InputConstants.Type.KEYSYM,
                 GLFW.GLFW_KEY_Z,
                 KeyMapping.Category.MISC
