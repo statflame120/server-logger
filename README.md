@@ -6,7 +6,7 @@ A Fabric client-side mod for Minecraft 1.21.11 that automatically detects and re
 
 ## Features
 
-- **Auto plugin detection:** scans the server's command tree on join and fires a `/version` tab-complete probe to build a plugin list
+- **Auto plugin detection:** scans the server's command tree on join and fires a tab-complete probe to build a plugin list
 - **Server logs:** saves each server's data to a JSON file in `.minecraft/server-logs/` for later review
 - **Auto Clipboard:** automatically copies detected plugins to clipboard on join
 - **In-game GUI:** browse, search, filter, and manage all logged servers without leaving the game
