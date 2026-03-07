@@ -6,7 +6,7 @@ import java.util.regex.*;
 
 public class UrlExtractor {
 
-    // ── Patterns ──────────────────────────────────────────────────────────────
+ // patterns
 
     private static final Pattern URL_PATTERN = Pattern.compile(
             "(?i)(?:https?://)?(?:www\\.)?([a-z0-9](?:[a-z0-9\\-]{0,61}[a-z0-9])?" +
@@ -15,42 +15,27 @@ public class UrlExtractor {
             Pattern.CASE_INSENSITIVE
     );
 
-    /** Only digits and dots — used to detect version strings vs. bare IPv4. */
     private static final Pattern DIGITS_AND_DOTS = Pattern.compile("^[\\d.]+$");
 
-    /** Strict IPv4 — each octet 0-255, exactly three dots. */
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$"
     );
 
-    // ── Classification sets ───────────────────────────────────────────────────
-
-    /** TLDs that indicate a real game-server domain. */
     private static final Set<String> GAME_TLDS = Set.of(
             ".com", ".net", ".org", ".gg", ".io", ".co", ".xyz", ".me", ".cc", ".us"
     );
 
-    /**
-     * Substrings that route a candidate to {@link CategorizedResult#detectedUrls}
-     * instead of {@link CategorizedResult#gameAddresses}.
-     * Checked after the scheme check so http:// addresses are already caught.
-     */
     private static final Set<String> WEB_KEYWORDS = Set.of(
             "discord.gg", "discord.com",
             "google", "youtube", "twitch", "twitter", "reddit",
             "azure", "amazonaws", "cloudflare"
     );
 
-    /** Hard-noise blacklist — these are never useful game addresses. */
     private static final Set<String> BLACKLIST = Set.of(
             "mojang.com", "minecraft.net", "microsoft.com", "localhost", "www.", "store."
     );
 
-    /**
-     * Hub / proxy networks whose addresses should be flagged as high-priority
-     * for breadcrumb resolution.  Matched by substring so that subdomains like
-     * {@code play.minehut.com} are caught by the {@code "minehut"} entry.
-     */
+
     private static final Set<String> HIGH_PRIORITY_DOMAINS = Set.of(
             "minehut.gg", "minehut.com", "minehut",
             "fallentech.io", "mccentral.org"
@@ -58,62 +43,22 @@ public class UrlExtractor {
 
     // ── Result container ──────────────────────────────────────────────────────
 
-    /**
-     * Output of {@link #categorize}.
-     *
-     * <ul>
-     *   <li>{@code gameAddresses}   — valid server addresses, sorted so named
-     *       subdomains (play.*, mc.*, hub.*) appear before raw IPv4s.</li>
-     *   <li>{@code detectedUrls}    — web links, Discord invites, cloud URLs.</li>
-     *   <li>{@code versionStrings}  — digit-dot strings that look like software
-     *       versions rather than addresses (e.g. {@code "1.21.1"}).</li>
-     *   <li>{@code highPriorityMatches} — game addresses that match a known
-     *       hub/proxy network and should be prioritised for breadcrumb lookup.</li>
-     * </ul>
-     */
     public record CategorizedResult(
             List<String> gameAddresses,
             List<String> detectedUrls,
             List<String> versionStrings,
             Set<String>  highPriorityMatches
     ) {
-        /** True if any game address matched a high-priority hub network. */
         public boolean hasHighPriority() { return !highPriorityMatches.isEmpty(); }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /**
-     * Converts small-capital Unicode characters used in Minecraft server
-     * branding to their standard ASCII equivalents, then applies NFKC
-     * normalisation to collapse fullwidth / math-script variants.
-     *
-     * <p>Explicitly handled small caps (among others in the full map):
-     * <ul>
-     *   <li>U+0262 ɢ → g  (Small Capital G)</li>
-     *   <li>U+1D00 ᴀ → a  (Small Capital A)</li>
-     *   <li>U+1D07 ᴇ → e  (Small Capital E)</li>
-     *   <li>U+0280 ʀ → r  (Small Capital R)</li>
-     *   <li>U+1D0D ᴍ → m  (Small Capital M)</li>
-     * </ul>
-     */
     public static String normalize(String text) {
         if (text == null) return "";
         return transliterate(Normalizer.normalize(text, Normalizer.Form.NFKC));
     }
 
-    /**
-     * Extracts candidate addresses from {@code text} via three passes:
-     *
-     * <ol>
-     *   <li>Raw regex on the original text.</li>
-     *   <li>NFKC normalisation (fullwidth, math-script → ASCII).</li>
-     *   <li>Homoglyph transliteration on top of the NFKC result (Cyrillic
-     *       lookalikes and small-cap IPA letters).</li>
-     * </ol>
-     *
-     * Falls back to the next pass only when the previous one finds nothing.
-     */
     public static Set<String> extract(String text) {
         if (text == null || text.isBlank()) return Collections.emptySet();
 
@@ -127,17 +72,6 @@ public class UrlExtractor {
         return extractRaw(transliterate(nfkc));
     }
 
-    /**
-     * Classifies a collection of already-extracted candidates into game
-     * addresses, web URLs, and version strings, applying noise filtering,
-     * normalisation, and high-priority detection.
-     *
-     * <p>Typical usage:
-     * <pre>{@code
-     *   Set<String> raw = UrlExtractor.extract(tabListText);
-     *   CategorizedResult r = UrlExtractor.categorize(raw);
-     * }</pre>
-     */
     public static CategorizedResult categorize(Collection<String> candidates) {
         List<String> gameAddresses  = new ArrayList<>();
         List<String> detectedUrls   = new ArrayList<>();
@@ -151,28 +85,24 @@ public class UrlExtractor {
 
             String lower = candidate.toLowerCase(Locale.ROOT);
 
-            // ── Version strings (digits + dots that are NOT valid IPv4) ────────
             if (DIGITS_AND_DOTS.matcher(lower).matches()) {
                 int dots = (int) lower.chars().filter(c -> c == '.').count();
-                // Exactly 3 dots and long enough → treat as IPv4, handled below.
-                // Anything else (e.g. "1.21.1", "7.2.5") → version string.
                 if (dots != 3 || lower.length() < 7) {
                     versionStrings.add(candidate);
                     continue;
                 }
-                // Falls through to game-address check as a bare IP.
             }
 
-            // ── Hard noise ────────────────────────────────────────────────────
+            // Noise handler
             if (isNoise(lower, false)) continue;
 
-            // ── Web URLs: has scheme or matches a web-service keyword ─────────
+            // Web URLs
             if (lower.contains("http") || WEB_KEYWORDS.stream().anyMatch(lower::contains)) {
                 detectedUrls.add(candidate);
                 continue;
             }
 
-            // ── Game addresses: named domain with recognised TLD or bare IPv4 ─
+            // Game addresses
             String bareHost = lower.split("[:/]")[0];
             if (hasGameTld(bareHost) || isValidIPv4(bareHost)) {
                 gameAddresses.add(candidate);
@@ -180,10 +110,9 @@ public class UrlExtractor {
                     highPriority.add(candidate);
                 }
             }
-            // Anything else lacks enough structure to be useful — discard.
         }
 
-        // Sort: play.* → mc.* → hub.* → other named domains → raw IPv4s
+        // Sort: play.* -> mc.* -> hub.* -> ther named domains -> raw IPv4s
         gameAddresses.sort(
                 Comparator.comparingInt((String s) -> prefixRank(s.toLowerCase(Locale.ROOT)))
                           .thenComparing(Comparator.naturalOrder())
@@ -197,62 +126,34 @@ public class UrlExtractor {
         );
     }
 
-    // ── Noise filter ──────────────────────────────────────────────────────────
-
-    /**
-     * Returns {@code true} if {@code candidate} is considered noise and should
-     * be discarded entirely.
-     *
-     * <ul>
-     *   <li>Shorter than 4 characters — too short to be a real address.</li>
-     *   <li>Pure digits-and-dots that do not form a valid IPv4 — version
-     *       numbers like {@code "7.2.5"} or {@code "1.21.1"}; these are
-     *       collected separately by {@link #categorize} rather than discarded.</li>
-     *   <li>Hard-blacklisted domains (mojang, minecraft.net, etc.).</li>
-     * </ul>
-     *
-     * Package-private so callers in this package can reuse it.
-     */
     static boolean isNoise(String candidate, boolean isTabList) {
         if (candidate == null || candidate.isBlank()) return true;
         String lower = candidate.toLowerCase(Locale.ROOT);
 
-        // 1. Bedrock/Geyser usernames start with a single leading dot (.PlayerName)
-        //    and have no further dots — real subdomains like .minehut.gg have at
-        //    least one more dot after the prefix and must not be filtered.
+        // 1. Bedrock players tab exception (Geyser)
         if (isTabList && lower.startsWith(".") && lower.indexOf('.', 1) < 0) return true;
 
-        // 2. Too short to be meaningful.
+        // 2. Too short IP
         if (lower.length() < 4) return true;
 
-        // 3. Digit-dot strings: version numbers handled separately; valid IPv4
-        //    passes through (dots == 3 and length >= 7 checked by caller).
+        // 3. IP validity checking, 2 dots
         if (DIGITS_AND_DOTS.matcher(lower).matches()) {
             int dots = (int) lower.chars().filter(c -> c == '.').count();
             return dots != 2;
         }
 
-        // 4. Hard blacklist.
+        // 4. Blacklist
         return BLACKLIST.stream().anyMatch(lower::contains);
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /** Returns true if the bare host ends with a recognised game-server TLD. */
     private static boolean hasGameTld(String bareHost) {
         return GAME_TLDS.stream().anyMatch(bareHost::endsWith);
     }
-
-    /** Strict IPv4 validation (no port, no path). */
     private static boolean isValidIPv4(String s) {
         if (s == null || s.length() < 7 || s.length() > 15) return false;
         return IPV4_PATTERN.matcher(s).matches();
     }
 
-    /**
-     * Sort rank for well-known subdomain prefixes.
-     * Lower = earlier in the sorted list.
-     */
     private static int prefixRank(String lower) {
         if (lower.startsWith("play.")) return 0;
         if (lower.startsWith("mc."))   return 1;
@@ -271,19 +172,16 @@ public class UrlExtractor {
         return results;
     }
 
-    // ── Homoglyph transliteration ─────────────────────────────────────────────
+
 
     /**
      * Maps Unicode characters that NFKC does not normalise — Cyrillic
      * lookalikes, IPA small-cap letters, and Unicode dot variants — to their
      * closest ASCII equivalents.
-     *
-     * <p>Small-cap letters explicitly requested by the caller are marked *.
+     * Small-cap letters explicitly requested by the caller are marked *.
      */
     private static final Map<Character, Character> HOMOGLYPHS;
     static {
-
-        // Cyrillic lowercase lookalikes
 
         // fullwidth full stop ．
         HOMOGLYPHS = Map.ofEntries(Map.entry('а', 'a'), Map.entry('е', 'e'), Map.entry('о', 'o'), Map.entry('р', 'p'), Map.entry('с', 'c'), Map.entry('х', 'x'), Map.entry('у', 'y'), Map.entry('і', 'i'), Map.entry('ѕ', 's'),
@@ -315,7 +213,7 @@ public class UrlExtractor {
                 Map.entry('ʏ', 'y'), // U+028F  Small Capital Y
                 Map.entry('ᴢ', 'z'), // U+1D22  Small Capital Z
 
-                // Unicode dot / period alternatives
+                // Unicode dot alt
                 Map.entry('·', '.'), // middle dot        ·
                 Map.entry('•', '.'), // bullet             •
                 Map.entry('․', '.'), // one dot leader     ․
