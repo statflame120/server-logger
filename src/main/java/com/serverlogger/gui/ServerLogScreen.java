@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Environment(EnvType.CLIENT)
 public class ServerLogScreen extends Screen {
 
-    private static final String[] FILTER_MODES = {"All", "Name", "Plugin", "Software"};
+    private static final String[] FILTER_MODES = {"All", "Name", "Plugin", "Brand"};
     private static final int HEADER_H = 48;
     private static final int FOOTER_H = 36;
 
@@ -111,6 +111,7 @@ public class ServerLogScreen extends Screen {
 
         if (!keyHandlerRegistered) {
             keyHandlerRegistered = true;
+            //? if >=1.21.9 {
             ScreenKeyboardEvents.allowKeyPress(this).register((screen, key) -> {
                 int k = key.key();
                 boolean searchFocused = searchBox != null && searchBox.isFocused();
@@ -127,6 +128,24 @@ public class ServerLogScreen extends Screen {
                 }
                 return true;
             });
+            //?} else {
+            /*ScreenKeyboardEvents.allowKeyPress(this).register((screen, key, scancode, modifiers) -> {
+                int k = key;
+                boolean searchFocused = searchBox != null && searchBox.isFocused();
+                if (!searchFocused) {
+                    if ((k == GLFW.GLFW_KEY_DELETE || k == GLFW.GLFW_KEY_BACKSPACE)
+                            && listWidget != null && listWidget.getSelected() != null) {
+                        removeSelected();
+                        return false;
+                    }
+                    if (k == GLFW.GLFW_KEY_Z && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+                        undoRemoval();
+                        return false;
+                    }
+                }
+                return true;
+            });
+            *///?}
         }
 
         refreshList();
@@ -148,13 +167,13 @@ public class ServerLogScreen extends Screen {
                     case "Plugin":
                         return data.plugins.stream()
                                 .anyMatch(p -> p.toLowerCase(Locale.ROOT).contains(query));
-                    case "Software":
-                        return data.software.toLowerCase(Locale.ROOT).contains(query);
+                    case "Brand":
+                        return data.brand.toLowerCase(Locale.ROOT).contains(query);
                     default:
                         return data.getDisplayName().toLowerCase(Locale.ROOT).contains(query)
                                 || data.plugins.stream()
                                         .anyMatch(p -> p.toLowerCase(Locale.ROOT).contains(query))
-                                || data.software.toLowerCase(Locale.ROOT).contains(query);
+                                || data.brand.toLowerCase(Locale.ROOT).contains(query);
                 }
             }).collect(Collectors.toList());
         }

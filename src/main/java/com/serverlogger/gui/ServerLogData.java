@@ -26,7 +26,7 @@ public class ServerLogData {
     public final String ip;
     public final int    port;
     public final String domain;
-    public final String software;
+    public final String brand;
     public final String version;
     public final List<String>       plugins;
     public final List<String>       detectedAddresses;
@@ -41,7 +41,8 @@ public class ServerLogData {
         this.ip       = info.has("ip")       ? info.get("ip").getAsString()       : "unknown";
         this.port     = info.has("port")     ? info.get("port").getAsInt()        : 25565;
         this.domain   = info.has("domain")   ? info.get("domain").getAsString()   : "unknown";
-        this.software = info.has("software") ? info.get("software").getAsString() : "unknown";
+        this.brand    = info.has("brand")    ? info.get("brand").getAsString()
+                       : info.has("software") ? info.get("software").getAsString() : "unknown";
         this.version  = info.has("version")  ? info.get("version").getAsString()  : "unknown";
 
         this.plugins = new ArrayList<>();

@@ -3,6 +3,7 @@ package com.serverlogger.gui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
+//? if >=1.21.9
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
@@ -37,6 +38,7 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
         }
     }
 
+    //? if >=1.21.9 {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
         boolean result = super.mouseClicked(event, bl);
@@ -50,6 +52,21 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
         }
         return result;
     }
+    //?} else {
+    /*@Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        boolean result = super.mouseClicked(mouseX, mouseY, button);
+        Entry entry = getEntryAtPosition(mouseX, mouseY);
+        if (entry != null && button == 0) {
+            if (System.currentTimeMillis() - lastClickTime < 300 && entry == lastClickedEntry) {
+                parentScreen.openDetail(entry.getData());
+            }
+            lastClickTime = System.currentTimeMillis();
+            lastClickedEntry = entry;
+        }
+        return result;
+    }
+    *///?}
 
     public class Entry extends ObjectSelectionList.Entry<Entry> {
 
@@ -63,6 +80,7 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
             return data;
         }
 
+        //? if >=1.21.9 {
         @Override
         public void renderContent(GuiGraphics graphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
             int left = getContentX();
@@ -70,12 +88,24 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
 
             graphics.drawString(minecraft.font, data.getDisplayName(), left + 3, top + 2, 0xFFFFFFFF);
 
-            String info = data.software + " | " + data.plugins.size() + " plugin" + (data.plugins.size() != 1 ? "s" : "");
+            String info = data.brand + " | " + data.plugins.size() + " plugin" + (data.plugins.size() != 1 ? "s" : "");
             graphics.drawString(minecraft.font, info, left + 3, top + 13, 0xFFAAAAAA);
 
             graphics.drawString(minecraft.font, data.timestamp, left + 3, top + 24, 0xFF666666);
         }
+        //?} else {
+        /*@Override
+        public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovering, float partialTick) {
+            graphics.drawString(minecraft.font, data.getDisplayName(), left + 3, top + 2, 0xFFFFFFFF);
 
+            String info = data.brand + " | " + data.plugins.size() + " plugin" + (data.plugins.size() != 1 ? "s" : "");
+            graphics.drawString(minecraft.font, info, left + 3, top + 13, 0xFFAAAAAA);
+
+            graphics.drawString(minecraft.font, data.timestamp, left + 3, top + 24, 0xFF666666);
+        }
+        *///?}
+
+        //? if >=1.21.9 {
         @Override
         public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
             if (event.button() == 0) {
@@ -89,6 +119,21 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
             }
             return false;
         }
+        //?} else {
+        /*@Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0) {
+                ServerListWidget.this.setSelected(this);
+                return true;
+            }
+            if (button == 1) {
+                // Right-click copies the display name
+                Minecraft.getInstance().keyboardHandler.setClipboard(data.getDisplayName());
+                return true;
+            }
+            return false;
+        }
+        *///?}
 
         @Override
         public Component getNarration() {

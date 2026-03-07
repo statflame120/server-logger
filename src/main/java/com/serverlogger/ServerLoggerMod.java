@@ -36,6 +36,7 @@ public class ServerLoggerMod implements ClientModInitializer {
         pluginGlossary.load();
         breadcrumbResolver.load();
 
+        //? if >=1.21.9 {
         openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "Server Logger Menu",
                 InputConstants.Type.KEYSYM,
@@ -49,6 +50,21 @@ public class ServerLoggerMod implements ClientModInitializer {
                 GLFW.GLFW_KEY_X,
                 KeyMapping.Category.MISC
         ));
+        //?} else {
+        /*openGuiKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+                "Server Logger Menu",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_Z,
+                "key.categories.misc"
+        ));
+
+        manualLogKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
+                "Manual Log",
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_X,
+                "key.categories.misc"
+        ));
+        *///?}
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             dataCollector.onServerJoin(handler, client);
@@ -74,7 +90,7 @@ public class ServerLoggerMod implements ClientModInitializer {
 
     }
 
-    // Sends a message to the player's chat if showMessages is enabled.
+    // this sends a message to the player's chat if showMessages is enabled.
     public static void sendMessage(String text) {
         if (INSTANCE != null && INSTANCE.config.showMessages) {
             Minecraft mc = Minecraft.getInstance();

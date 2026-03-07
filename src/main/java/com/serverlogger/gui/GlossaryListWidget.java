@@ -3,6 +3,7 @@ package com.serverlogger.gui;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
+//? if >=1.21.9
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
@@ -45,6 +46,7 @@ public class GlossaryListWidget extends ObjectSelectionList<GlossaryListWidget.E
             return command;
         }
 
+        //? if >=1.21.9 {
         @Override
         public void renderContent(GuiGraphics graphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
             int left = getContentX();
@@ -53,7 +55,16 @@ public class GlossaryListWidget extends ObjectSelectionList<GlossaryListWidget.E
             graphics.drawString(minecraft.font, "\u2192", left + 120, top + 5, 0xFF888888);
             graphics.drawString(minecraft.font, plugin, left + 136, top + 5, 0xFF55FF55);
         }
+        //?} else {
+        /*@Override
+        public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovering, float partialTick) {
+            graphics.drawString(minecraft.font, command, left + 4, top + 5, 0xFFFFFFFF);
+            graphics.drawString(minecraft.font, "\u2192", left + 120, top + 5, 0xFF888888);
+            graphics.drawString(minecraft.font, plugin, left + 136, top + 5, 0xFF55FF55);
+        }
+        *///?}
 
+        //? if >=1.21.9 {
         @Override
         public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
             if (event.button() == 0) {
@@ -67,6 +78,21 @@ public class GlossaryListWidget extends ObjectSelectionList<GlossaryListWidget.E
             }
             return false;
         }
+        //?} else {
+        /*@Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0) {
+                GlossaryListWidget.this.setSelected(this);
+                return true;
+            }
+            if (button == 1) {
+                // Right-click copies the entry text
+                Minecraft.getInstance().keyboardHandler.setClipboard(command + "=" + plugin);
+                return true;
+            }
+            return false;
+        }
+        *///?}
 
         @Override
         public Component getNarration() {
