@@ -77,6 +77,7 @@ public class BreadcrumbEditorScreen extends Screen {
 
         if (!keyHandlerRegistered) {
             keyHandlerRegistered = true;
+            //? if >=1.21.9 {
             ScreenKeyboardEvents.allowKeyPress(this).register((screen, key) -> {
                 boolean editBoxFocused = serverBox != null && serverBox.isFocused();
                 int k = key.key();
@@ -93,6 +94,24 @@ public class BreadcrumbEditorScreen extends Screen {
                 }
                 return true;
             });
+            //?} else {
+            /*ScreenKeyboardEvents.allowKeyPress(this).register((screen, key, scancode, modifiers) -> {
+                boolean editBoxFocused = serverBox != null && serverBox.isFocused();
+                int k = key;
+                if (!editBoxFocused) {
+                    if ((k == GLFW.GLFW_KEY_DELETE || k == GLFW.GLFW_KEY_BACKSPACE)
+                            && listWidget != null && listWidget.getSelected() != null) {
+                        removeSelected();
+                        return false;
+                    }
+                    if (k == GLFW.GLFW_KEY_Z && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+                        undo();
+                        return false;
+                    }
+                }
+                return true;
+            });
+            *///?}
         }
 
         updateButtonStates();

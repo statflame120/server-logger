@@ -4,6 +4,7 @@ import com.serverlogger.ServerLoggerMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
+//? if >=1.21.9
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
@@ -45,6 +46,7 @@ public class BreadcrumbListWidget extends ObjectSelectionList<BreadcrumbListWidg
             return server;
         }
 
+        //? if >=1.21.9 {
         @Override
         public void renderContent(GuiGraphics graphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
             int left = getContentX();
@@ -52,6 +54,13 @@ public class BreadcrumbListWidget extends ObjectSelectionList<BreadcrumbListWidg
             int color = isCurrentServer() ? 0xFF5599FF : 0xFFFFFFFF;
             graphics.drawString(minecraft.font, server, left + 4, top + 5, color);
         }
+        //?} else {
+        /*@Override
+        public void render(GuiGraphics graphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovering, float partialTick) {
+            int color = isCurrentServer() ? 0xFF5599FF : 0xFFFFFFFF;
+            graphics.drawString(minecraft.font, server, left + 4, top + 5, color);
+        }
+        *///?}
 
         private boolean isCurrentServer() {
             if (ServerLoggerMod.INSTANCE == null) return false;
@@ -60,6 +69,7 @@ public class BreadcrumbListWidget extends ObjectSelectionList<BreadcrumbListWidg
             return domain.toLowerCase(Locale.ROOT).contains(server);
         }
 
+        //? if >=1.21.9 {
         @Override
         public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
             if (event.button() == 0) {
@@ -72,6 +82,20 @@ public class BreadcrumbListWidget extends ObjectSelectionList<BreadcrumbListWidg
             }
             return false;
         }
+        //?} else {
+        /*@Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (button == 0) {
+                BreadcrumbListWidget.this.setSelected(this);
+                return true;
+            }
+            if (button == 1) {
+                Minecraft.getInstance().keyboardHandler.setClipboard(server);
+                return true;
+            }
+            return false;
+        }
+        *///?}
 
         @Override
         public Component getNarration() {

@@ -103,7 +103,7 @@ public class JsonLogger {
             serverInfo.addProperty("ip",       data.ip);
             serverInfo.addProperty("port",     data.port);
             serverInfo.addProperty("domain",   data.domain);
-            serverInfo.addProperty("software", data.software);
+            serverInfo.addProperty("brand", data.brand);
             serverInfo.addProperty("version",  data.version);
             root.add("server_info", serverInfo);
 

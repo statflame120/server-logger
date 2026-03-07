@@ -36,7 +36,10 @@ public class ClientPacketListenerMixin {
     private void serverLogger$onLogin(ClientboundLoginPacket packet, CallbackInfo ci) {
         if (ServerLoggerMod.INSTANCE == null) return;
         try {
+            //? if >=1.21.11
             String dim = packet.commonPlayerSpawnInfo().dimension().identifier().toString();
+            //? if <1.21.11
+            //String dim = packet.commonPlayerSpawnInfo().dimension().location().toString();
             ServerLoggerMod.INSTANCE.dataCollector.onDimension(dim);
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read dimension from login: {}", e.getMessage());
@@ -48,7 +51,10 @@ public class ClientPacketListenerMixin {
     private void serverLogger$onRespawn(ClientboundRespawnPacket packet, CallbackInfo ci) {
         if (ServerLoggerMod.INSTANCE == null) return;
         try {
+            //? if >=1.21.11
             String dim = packet.commonPlayerSpawnInfo().dimension().identifier().toString();
+            //? if <1.21.11
+            //String dim = packet.commonPlayerSpawnInfo().dimension().location().toString();
             ServerLoggerMod.INSTANCE.dataCollector.onDimension(dim);
         } catch (Exception e) {
         }

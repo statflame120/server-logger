@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+//? if >=1.21.9
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
@@ -97,7 +98,7 @@ public class ServerDetailScreen extends Screen {
 
         // Row 1
         addHeaderRegion(c1, 18, "IP: ",       data.ip + ":" + data.port);
-        addHeaderRegion(c2, 18, "Software: ", data.software);
+        addHeaderRegion(c2, 18, "Brand: ", data.brand);
         addHeaderRegion(c3, 18, "Version: ",  data.version);
 
         // Row 2
@@ -121,6 +122,7 @@ public class ServerDetailScreen extends Screen {
         feedbackTime = System.currentTimeMillis();
     }
 
+    //? if >=1.21.9 {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
         double mouseX = event.x();
@@ -141,7 +143,6 @@ public class ServerDetailScreen extends Screen {
         if (mouseX >= sbLeft && mouseX < sbRight && mouseY >= sbTop && mouseY < sbBottom) {
             int y = sbTop + PAD - sidebarScroll + LABEL_H;
 
-            // Game Addresses
             if (!data.detectedGameAddresses.isEmpty()) {
                 for (String addr : data.detectedGameAddresses) {
                     if (mouseY >= y && mouseY < y + ITEM_H) {
@@ -157,7 +158,6 @@ public class ServerDetailScreen extends Screen {
 
             y += 10 + LABEL_H;
 
-            // Detected URLs
             if (!data.detectedAddresses.isEmpty()) {
                 for (String addr : data.detectedAddresses) {
                     if (mouseY >= y && mouseY < y + ITEM_H) {
@@ -216,6 +216,99 @@ public class ServerDetailScreen extends Screen {
 
         return super.mouseClicked(event, bl);
     }
+    //?} else {
+    /*@Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+
+        // ── Header click-to-copy ─────────────────────────────────────────────
+        if (mouseY < HEADER_H) {
+            for (CopyRegion r : headerCopyRegions) {
+                if (mouseX >= r.x() && mouseX <= r.x() + r.w()
+                        && mouseY >= r.y() && mouseY <= r.y() + font.lineHeight) {
+                    copyWithFeedback(r.text(), r.x(), r.y(), r.w());
+                    return true;
+                }
+            }
+        }
+
+        // ── Sidebar click-to-copy ────────────────────────────────────────────
+        if (mouseX >= sbLeft && mouseX < sbRight && mouseY >= sbTop && mouseY < sbBottom) {
+            int y = sbTop + PAD - sidebarScroll + LABEL_H;
+
+            if (!data.detectedGameAddresses.isEmpty()) {
+                for (String addr : data.detectedGameAddresses) {
+                    if (mouseY >= y && mouseY < y + ITEM_H) {
+                        int tx = sbLeft + 2 + font.width("  ");
+                        copyWithFeedback(addr, tx, y, font.width(fitText(addr, SIDEBAR_W - 8)));
+                        return true;
+                    }
+                    y += ITEM_H;
+                }
+            } else {
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            if (!data.detectedAddresses.isEmpty()) {
+                for (String addr : data.detectedAddresses) {
+                    if (mouseY >= y && mouseY < y + ITEM_H) {
+                        int tx = sbLeft + 2 + font.width("  ");
+                        copyWithFeedback(addr, tx, y, font.width(fitText(addr, SIDEBAR_W - 8)));
+                        return true;
+                    }
+                    y += ITEM_H;
+                }
+            } else {
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            for (ServerLogData.WorldSession ws : data.worlds) {
+                if (mouseY >= y && mouseY < y + ITEM_H) {
+                    int tx = sbLeft + 2 + font.width("  ");
+                    copyWithFeedback(ws.dimension, tx, y, font.width(fitText(ws.dimension, SIDEBAR_W - 8)));
+                    return true;
+                }
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            for (String rp : data.getResourcePacks()) {
+                if (mouseY >= y && mouseY < y + ITEM_H) {
+                    int tx = sbLeft + 2 + font.width("  ");
+                    copyWithFeedback(rp, tx, y, font.width(fitText(rp, SIDEBAR_W - 8)));
+                    return true;
+                }
+                y += ITEM_H;
+            }
+        }
+
+        // ── Plugin grid click-to-copy ────────────────────────────────────────
+        int gridTop = plTop + LABEL_H;
+        if (mouseX >= plLeft && mouseX < plRight && mouseY >= gridTop && mouseY < plBottom) {
+            int panelW = plRight - plLeft;
+            int colW   = panelW / numCols;
+            int relY   = (int)(mouseY - gridTop) + pluginScroll;
+            int row    = relY / ITEM_H;
+            int col    = (int)(mouseX - plLeft) / colW;
+            int idx    = row * numCols + col;
+            if (idx >= 0 && idx < data.plugins.size()) {
+                String plugin  = data.plugins.get(idx);
+                int    arrowW  = font.width("\u25B8 ");
+                int    ix      = plLeft + col * colW + 3 + arrowW;
+                int    iy      = gridTop + row * ITEM_H - pluginScroll + 1;
+                int    maxW    = colW - arrowW - 6;
+                copyWithFeedback(plugin, ix, iy, Math.min(font.width(plugin), maxW));
+                return true;
+            }
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+    *///?}
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
@@ -244,7 +337,7 @@ public class ServerDetailScreen extends Screen {
         int c1 = 8, c2 = width / 3, c3 = (2 * width) / 3;
 
         drawLabel(g, "IP",       data.ip + ":" + data.port, c1, 18, 0xFFAAAAAA, 0xFFFFFFFF);
-        drawLabel(g, "Software", data.software,              c2, 18, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(g, "Brand",    data.brand,                 c2, 18, 0xFFAAAAAA, 0xFFFFFFFF);
         drawLabel(g, "Version",  data.version,               c3, 18, 0xFFAAAAAA, 0xFFFFFFFF);
 
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {

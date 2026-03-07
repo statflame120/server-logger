@@ -15,7 +15,7 @@ public class ServerDataCollector {
     public String ip          = "unknown";
     public int    port        = 25565;
     public String domain      = "unknown";
-    public String software    = "unknown";
+    public String brand       = "unknown";
     public String version     = "unknown";
 
     public String dimension    = "minecraft:overworld";
@@ -38,7 +38,10 @@ public class ServerDataCollector {
         joined = true;
 
         try {
+            //? if >=1.21.6
             version = SharedConstants.getCurrentVersion().name();
+            //? if <1.21.6
+            //version = SharedConstants.getCurrentVersion().getName();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read MC version: {}", e.getMessage());
         }
@@ -71,11 +74,11 @@ public class ServerDataCollector {
             ServerLoggerMod.sendMessage("Could not read server address: " + e.getMessage());
         }
 
-        // ── Brand / software ──────────────────────────────────────────────────────
+        // ── Brand ────────────────────────────────────────────────────────────────
         try {
-            String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
+            String b = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                     handler).getServerBrand();
-            if (brand != null && !brand.isBlank()) software = brand;
+            if (b != null && !b.isBlank()) brand = b;
         } catch (Exception ignored) {}
 
         // ── Breadcrumb detection ──────────────────────────────────────────────────
@@ -88,8 +91,8 @@ public class ServerDataCollector {
             ServerLoggerMod.sendMessage("Breadcrumb server detected (" + domain + ") — scanning for real domain…");
         }
 
-        ServerLoggerMod.LOGGER.info("[Server Logger] Joined {}:{} ({}) software={}", ip, port, domain, software);
-        ServerLoggerMod.sendMessage("Joined " + ip + ":" + port + " (" + domain + ") — software: " + software);
+        ServerLoggerMod.LOGGER.info("[Server Logger] Joined {}:{} ({}) brand={}", ip, port, domain, brand);
+        ServerLoggerMod.sendMessage("Joined " + ip + ":" + port + " (" + domain + ") — brand: " + brand);
     }
 
     public void onPluginsDetected(List<String> detectedPlugins) {
@@ -107,6 +110,7 @@ public class ServerDataCollector {
             mc.execute(() -> {
                 if (cfg.autoClipboard) mc.keyboardHandler.setClipboard(pluginStr);
                 if (cfg.showToasts) {
+                    //? if >=1.21.4 {
                     SystemToast.add(
                             mc.getToastManager(),
                             SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
@@ -114,6 +118,8 @@ public class ServerDataCollector {
                             Component.literal("Detected " + count + " plugin" + (count != 1 ? "s" : "")
                                     + (cfg.autoClipboard ? " (copied to clipboard)" : ""))
                     );
+                    //?} else {
+                    //?}
                 }
             });
         }
@@ -128,8 +134,8 @@ public class ServerDataCollector {
         }
     }
 
-    public void onServerBrand(String brand) {
-        if (brand != null && !brand.isBlank()) software = brand;
+    public void onServerBrand(String b) {
+        if (b != null && !b.isBlank()) brand = b;
     }
 
     public void onDimension(String dimensionId) {
@@ -168,12 +174,12 @@ public class ServerDataCollector {
         if (pollTicks % POLL_INTERVAL != 0) return;
         if (pollTicks > MAX_POLL_TIME) return;
 
-        // Brand polling
-        if ("unknown".equals(software)) {
+        // brand
+        if ("unknown".equals(brand)) {
             try {
-                String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
+                String b = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                         client.getConnection()).getServerBrand();
-                if (brand != null && !brand.isBlank()) software = brand;
+                if (b != null && !b.isBlank()) brand = b;
             } catch (Exception ignored) {}
         }
 
@@ -182,7 +188,7 @@ public class ServerDataCollector {
         if (applyResolvedDomain()) JsonLogger.write(this);
     }
 
-    /** Scrapes scoreboard and tab-list for URLs (and breadcrumb domain resolution). */
+    //TAB and scoreboard for breadcrumbs
     private void doScan(Minecraft client) {
         // Scoreboard
         if (client.level != null) {
@@ -195,7 +201,7 @@ public class ServerDataCollector {
             });
         }
 
-        // Tab-list player entries
+        // Tab
         if (client.getConnection() != null) {
             client.getConnection().getOnlinePlayers().forEach(info -> {
                 var display = info.getTabListDisplayName();
@@ -212,7 +218,7 @@ public class ServerDataCollector {
 
     public void reset() {
         ip = "unknown"; port = 25565; domain = "unknown";
-        software = "unknown"; version = "unknown";
+        brand = "unknown"; version = "unknown";
         dimension = "minecraft:overworld";
         resourcePack = null;
         plugins.clear();
@@ -225,15 +231,14 @@ public class ServerDataCollector {
     }
 
     private void attemptWrite() {
-        // Ensure domain reflects the real sub-server before writing plugin log.
         applyResolvedDomain();
-        if ("unknown".equals(software)) {
+        if ("unknown".equals(brand)) {
             try {
                 var mc = Minecraft.getInstance();
                 if (mc.getConnection() != null) {
-                    String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
+                    String b = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                             mc.getConnection()).getServerBrand();
-                    if (brand != null && !brand.isBlank()) software = brand;
+                    if (b != null && !b.isBlank()) brand = b;
                 }
             } catch (Exception ignored) {}
         }
@@ -256,12 +261,10 @@ public class ServerDataCollector {
         return false;
     }
 
-    /** True if the candidate is a bare Minecraft-style server address (no scheme, no path). */
     private static boolean isGameAddress(String candidate) {
         return !candidate.contains("://") && !candidate.contains("/");
     }
 
-    /** Classifies each extracted URL and routes it to the appropriate set. */
     private void addExtractedUrls(String text) {
         for (String addr : UrlExtractor.extract(text)) {
             if (isGameAddress(addr)) detectedGameAddresses.add(addr);
