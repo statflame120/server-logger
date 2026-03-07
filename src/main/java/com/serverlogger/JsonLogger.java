@@ -32,6 +32,9 @@ public class JsonLogger {
             JsonArray addrArr = new JsonArray();
             data.getDetectedAddresses().forEach(addrArr::add);
 
+            JsonArray gameAddrArr = new JsonArray();
+            data.getDetectedGameAddresses().forEach(gameAddrArr::add);
+
             JsonObject currentWorld = new JsonObject();
             currentWorld.addProperty("timestamp", LocalDate.now().toString());
             currentWorld.addProperty("dimension", data.dimension);
@@ -82,8 +85,6 @@ public class JsonLogger {
                         worldsArr.add(currentWorld);
                     } else if (finalPlugins == pluginsArr && existingPlugins != null
                             && existingPlugins.size() >= pluginsArr.size()) {
-                        ServerLoggerMod.LOGGER.info(
-                                "[Server Logger] No new data for {}, skipping write.", outFile.getFileName());
                         ServerLoggerMod.sendMessage("No new data for " + outFile.getFileName() + ", skipping write");
                         return;
                     }
@@ -106,9 +107,10 @@ public class JsonLogger {
             serverInfo.addProperty("version",  data.version);
             root.add("server_info", serverInfo);
 
-            root.add("plugins",            finalPlugins);
-            root.add("detected_addresses", addrArr);
-            root.add("worlds",             worldsArr);
+            root.add("plugins",                  finalPlugins);
+            root.add("detected_addresses",       addrArr);
+            root.add("detected_game_addresses",  gameAddrArr);
+            root.add("worlds",                   worldsArr);
 
             String json = new GsonBuilder().setPrettyPrinting().create().toJson(root);
             Files.writeString(outFile, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);

@@ -71,10 +71,8 @@ public class ClientPacketListenerMixin {
                                            CallbackInfo ci) {
         if (ServerLoggerMod.INSTANCE == null) return;
         try {
-            Component body = Component.nullToEmpty(packet.body().content());
-            if (body != null) {
-                ServerLoggerMod.INSTANCE.dataCollector.onChatMessage(body.getString());
-            }
+            ServerLoggerMod.INSTANCE.dataCollector.onChatMessage(
+                    Component.nullToEmpty(packet.body().content()).getString());
         } catch (Exception ignored) {}
     }
 

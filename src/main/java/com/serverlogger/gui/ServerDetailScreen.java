@@ -1,26 +1,25 @@
 package com.serverlogger.gui;
 
 import com.serverlogger.ServerLoggerMod;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ServerDetailScreen extends Screen {
 
-    private static final int HEADER_H  = 54;  // two-row metadata bar
-    private static final int FOOTER_H  = 36;  // action bar (extra padding avoids taskbar)
-    private static final int SIDEBAR_W = 170; // fixed-width left column
-    private static final int GAP       = 5;   // gap between sidebar and plugin panel
-    private static final int PAD       = 5;   // outer edge padding
-    private static final int ITEM_H    = 12;  // height of each list / grid row
-    private static final int LABEL_H   = 16;  // section heading + underline clearance
+    private static final int HEADER_H  = 54;
+    private static final int FOOTER_H  = 36;
+    private static final int SIDEBAR_W = 170;
+    private static final int GAP       = 5;
+    private static final int PAD       = 5;
+    private static final int ITEM_H    = 12;
+    private static final int LABEL_H   = 16;
 
     private final Screen       parent;
     private final ServerLogData data;
@@ -30,9 +29,17 @@ public class ServerDetailScreen extends Screen {
     private int pluginScroll  = 0;
     private int sidebarScroll = 0;
 
-    private int sbLeft, sbTop, sbRight, sbBottom; // sidebar
-    private int plLeft, plTop, plRight, plBottom; // plugin panel
-    private int numCols;                           // 3 or 4 grid columns
+    private int sbLeft, sbTop, sbRight, sbBottom;
+    private int plLeft, plTop, plRight, plBottom;
+    private int numCols;
+
+    // Click-to-copy regions for fixed header text
+    private record CopyRegion(int x, int y, int w, String text) {}
+    private final List<CopyRegion> headerCopyRegions = new ArrayList<>();
+
+    // Underline flash feedback (0.2 s)
+    private int  feedbackX, feedbackY, feedbackW;
+    private long feedbackTime = 0;
 
     public ServerDetailScreen(Screen parent, ServerLogData data) {
         super(Component.literal("Server Detail"));
@@ -42,10 +49,9 @@ public class ServerDetailScreen extends Screen {
 
     @Override
     protected void init() {
-        // Build set of canonical plugin names that the glossary resolves to
-        if (com.serverlogger.ServerLoggerMod.INSTANCE != null) {
+        if (ServerLoggerMod.INSTANCE != null) {
             glossaryPluginNames = new java.util.HashSet<>(
-                    com.serverlogger.ServerLoggerMod.INSTANCE.pluginGlossary.getEntries().values());
+                    ServerLoggerMod.INSTANCE.pluginGlossary.getEntries().values());
         }
 
         int bodyTop    = HEADER_H;
@@ -67,27 +73,165 @@ public class ServerDetailScreen extends Screen {
         int btnY = height - FOOTER_H + 8;
 
         addRenderableWidget(Button.builder(
-                Component.literal("Import"), btn -> openLogsFolder())
-                .bounds(cx - 115, btnY, 60, 20).build());
-
-        addRenderableWidget(Button.builder(
                 Component.literal("Copy Plugins"),
                 btn -> Minecraft.getInstance().keyboardHandler
                         .setClipboard(String.join(", ", data.plugins)))
-                .bounds(cx - 50, btnY, 100, 20).build());
+                .bounds(cx - 55, btnY, 110, 20).build());
 
         addRenderableWidget(Button.builder(
                 Component.literal("Back"), btn -> minecraft.setScreen(parent))
-                .bounds(cx + 55, btnY, 60, 20).build());
+                .bounds(cx + 60, btnY, 55, 20).build());
+
+        // Build header click-to-copy regions (font is ready here)
+        buildHeaderCopyRegions();
+    }
+
+    private void buildHeaderCopyRegions() {
+        headerCopyRegions.clear();
+        int c1 = 8, c2 = width / 3, c3 = (2 * width) / 3;
+
+        // Title
+        String displayName = data.getDisplayName();
+        int titleX = width / 2 - font.width(displayName) / 2;
+        headerCopyRegions.add(new CopyRegion(titleX, 5, font.width(displayName), displayName));
+
+        // Row 1
+        addHeaderRegion(c1, 18, "IP: ",       data.ip + ":" + data.port);
+        addHeaderRegion(c2, 18, "Software: ", data.software);
+        addHeaderRegion(c3, 18, "Version: ",  data.version);
+
+        // Row 2
+        if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
+            addHeaderRegion(c1, 30, "Domain: ", data.domain);
+        }
+        addHeaderRegion(c2, 30, "Logged: ",  data.timestamp);
+        addHeaderRegion(c3, 30, "Plugins: ", String.valueOf(data.plugins.size()));
+    }
+
+    private void addHeaderRegion(int x, int y, String label, String value) {
+        int vx = x + font.width(label);
+        headerCopyRegions.add(new CopyRegion(vx, y, font.width(value), value));
+    }
+
+    private void copyWithFeedback(String text, int x, int y, int w) {
+        minecraft.keyboardHandler.setClipboard(text);
+        feedbackX    = x;
+        feedbackY    = y;
+        feedbackW    = w;
+        feedbackTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+
+        // ── Header click-to-copy ─────────────────────────────────────────────
+        if (mouseY < HEADER_H) {
+            for (CopyRegion r : headerCopyRegions) {
+                if (mouseX >= r.x() && mouseX <= r.x() + r.w()
+                        && mouseY >= r.y() && mouseY <= r.y() + font.lineHeight) {
+                    copyWithFeedback(r.text(), r.x(), r.y(), r.w());
+                    return true;
+                }
+            }
+        }
+
+        // ── Sidebar click-to-copy ────────────────────────────────────────────
+        if (mouseX >= sbLeft && mouseX < sbRight && mouseY >= sbTop && mouseY < sbBottom) {
+            int y = sbTop + PAD - sidebarScroll + LABEL_H;
+
+            // Game Addresses
+            if (!data.detectedGameAddresses.isEmpty()) {
+                for (String addr : data.detectedGameAddresses) {
+                    if (mouseY >= y && mouseY < y + ITEM_H) {
+                        int tx = sbLeft + 2 + font.width("  ");
+                        copyWithFeedback(addr, tx, y, font.width(fitText(addr, SIDEBAR_W - 8)));
+                        return true;
+                    }
+                    y += ITEM_H;
+                }
+            } else {
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            // Detected URLs
+            if (!data.detectedAddresses.isEmpty()) {
+                for (String addr : data.detectedAddresses) {
+                    if (mouseY >= y && mouseY < y + ITEM_H) {
+                        int tx = sbLeft + 2 + font.width("  ");
+                        copyWithFeedback(addr, tx, y, font.width(fitText(addr, SIDEBAR_W - 8)));
+                        return true;
+                    }
+                    y += ITEM_H;
+                }
+            } else {
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            for (ServerLogData.WorldSession ws : data.worlds) {
+                if (mouseY >= y && mouseY < y + ITEM_H) {
+                    int tx = sbLeft + 2 + font.width("  ");
+                    copyWithFeedback(ws.dimension, tx, y, font.width(fitText(ws.dimension, SIDEBAR_W - 8)));
+                    return true;
+                }
+                y += ITEM_H;
+            }
+
+            y += 10 + LABEL_H;
+
+            for (String rp : data.getResourcePacks()) {
+                if (mouseY >= y && mouseY < y + ITEM_H) {
+                    int tx = sbLeft + 2 + font.width("  ");
+                    copyWithFeedback(rp, tx, y, font.width(fitText(rp, SIDEBAR_W - 8)));
+                    return true;
+                }
+                y += ITEM_H;
+            }
+        }
+
+        // ── Plugin grid click-to-copy ────────────────────────────────────────
+        int gridTop = plTop + LABEL_H;
+        if (mouseX >= plLeft && mouseX < plRight && mouseY >= gridTop && mouseY < plBottom) {
+            int panelW = plRight - plLeft;
+            int colW   = panelW / numCols;
+            int relY   = (int)(mouseY - gridTop) + pluginScroll;
+            int row    = relY / ITEM_H;
+            int col    = (int)(mouseX - plLeft) / colW;
+            int idx    = row * numCols + col;
+            if (idx >= 0 && idx < data.plugins.size()) {
+                String plugin  = data.plugins.get(idx);
+                int    arrowW  = font.width("\u25B8 ");
+                int    ix      = plLeft + col * colW + 3 + arrowW;
+                int    iy      = gridTop + row * ITEM_H - pluginScroll + 1;
+                int    maxW    = colW - arrowW - 6;
+                copyWithFeedback(plugin, ix, iy, Math.min(font.width(plugin), maxW));
+                return true;
+            }
+        }
+
+        return super.mouseClicked(event, bl);
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderHeader(g);
         renderFooter(g);
-        super.render(g, mouseX, mouseY, partialTick); // buttons drawn over backgrounds
+        super.render(g, mouseX, mouseY, partialTick);
         renderBody(g);
+
+        // Underline flash on copy (200 ms)
+        if (System.currentTimeMillis() - feedbackTime < 200) {
+            g.fill(feedbackX, feedbackY + font.lineHeight,
+                   feedbackX + feedbackW, feedbackY + font.lineHeight + 1,
+                   0xFFFFFFFF);
+        }
     }
+
     private void renderHeader(GuiGraphics g) {
         g.fill(0, 0, width, HEADER_H, 0xCC050510);
         g.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
@@ -99,12 +243,10 @@ public class ServerDetailScreen extends Screen {
 
         int c1 = 8, c2 = width / 3, c3 = (2 * width) / 3;
 
-        // Row 1
         drawLabel(g, "IP",       data.ip + ":" + data.port, c1, 18, 0xFFAAAAAA, 0xFFFFFFFF);
         drawLabel(g, "Software", data.software,              c2, 18, 0xFFAAAAAA, 0xFFFFFFFF);
         drawLabel(g, "Version",  data.version,               c3, 18, 0xFFAAAAAA, 0xFFFFFFFF);
 
-        // Row 2
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
             drawLabel(g, "Domain", data.domain, c1, 30, 0xFFAAAAAA, 0xFF88AAFF);
         }
@@ -112,18 +254,14 @@ public class ServerDetailScreen extends Screen {
         drawLabel(g, "Plugins", String.valueOf(data.plugins.size()), c3, 30, 0xFFAAAAAA, 0xFF55FF55);
     }
 
-    //footer
     private void renderFooter(GuiGraphics g) {
         g.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
         g.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
     }
 
-    //left sidebar + right plugin grid
     private void renderBody(GuiGraphics g) {
-        // Vertical divider
         g.fill(sbRight, sbTop + 4, sbRight + 1, sbBottom - 4, 0xFF334466);
 
-        // Left sidebar
         g.enableScissor(sbLeft, sbTop, sbRight, sbBottom);
         renderSidebar(g);
         g.disableScissor();
@@ -135,17 +273,19 @@ public class ServerDetailScreen extends Screen {
         g.disableScissor();
     }
 
-    //left sidebar
-
     private void renderSidebar(GuiGraphics g) {
         int y = sbTop + PAD - sidebarScroll;
-
         y = renderListSection(g, sbLeft, y,
-                "Detected Addresses", data.detectedAddresses,
+                "Game Addresses", data.detectedGameAddresses,
+                0xFF55FF55, 0x4455FF55, 0xFFAAFFAA);
+        y += 10;
+        y = renderListSection(g, sbLeft, y,
+                "Detected URLs", data.detectedAddresses,
                 0xFF88AAFF, 0x4488AAFF, 0xFFCCCCCC);
         y += 10;
-
-        renderWorldsSection(g, sbLeft, y);
+        y = renderWorldsSection(g, sbLeft, y);
+        y += 10;
+        renderResourcePacksSection(g, sbLeft, y);
     }
 
     private int renderListSection(GuiGraphics g, int x, int y,
@@ -168,7 +308,7 @@ public class ServerDetailScreen extends Screen {
         return y;
     }
 
-    private void renderWorldsSection(GuiGraphics g, int x, int y) {
+    private int renderWorldsSection(GuiGraphics g, int x, int y) {
         String heading = "Worlds Visited (" + data.worlds.size() + ")";
         g.drawString(font, heading, x, y, 0xFFFFAA55);
         g.fill(x, y + 10, x + font.width(heading), y + 11, 0x44FFAA55);
@@ -176,19 +316,21 @@ public class ServerDetailScreen extends Screen {
 
         if (data.worlds.isEmpty()) {
             g.drawString(font, "  None recorded", x + 2, y, 0xFF555555);
+            y += ITEM_H;
         } else {
             for (ServerLogData.WorldSession ws : data.worlds) {
                 g.drawString(font, "  " + fitText(ws.dimension, SIDEBAR_W - 8), x + 2, y, 0xFFCCCCCC);
                 y += ITEM_H;
-                if (ws.resourcePack != null) {
-                    g.drawString(font, "    " + fitText(ws.resourcePack, SIDEBAR_W - 14), x + 2, y, 0xFF888888);
-                    y += ITEM_H;
-                }
             }
         }
+        return y;
     }
 
-    //right plugin panel
+    private void renderResourcePacksSection(GuiGraphics g, int x, int y) {
+        renderListSection(g, x, y, "Resource Packs", data.getResourcePacks(),
+                0xFFFF55AA, 0x44FF55AA, 0xFFCCCCCC);
+    }
+
     private void renderPluginLabel(GuiGraphics g) {
         String heading = "Plugins (" + data.plugins.size() + ")";
         g.drawString(font, heading, plLeft + 2, plTop + 3, 0xFF55AAFF);
@@ -220,7 +362,6 @@ public class ServerDetailScreen extends Screen {
             int ix  = plLeft + col * colW + 3;
             int iy  = gridTop + row * ITEM_H - pluginScroll + 1;
             String pluginName = data.plugins.get(i);
-            // Blue for glossary-identified plugins, light grey for everything else
             int color = glossaryPluginNames.contains(pluginName) ? 0xFF5599FF : 0xFFDDDDDD;
             g.drawString(font, "\u25B8 " + fitText(pluginName, maxTextPx), ix, iy, color);
         }
@@ -230,7 +371,6 @@ public class ServerDetailScreen extends Screen {
     public boolean mouseScrolled(double mouseX, double mouseY,
                                  double horizontalAmount, double verticalAmount) {
         int delta = (int) (verticalAmount * 10);
-
         if (mouseX >= plLeft && mouseX < plRight && mouseY >= plTop && mouseY < plBottom) {
             pluginScroll = Math.max(0, Math.min(pluginScroll - delta, maxPluginScroll()));
         } else if (mouseX >= sbLeft && mouseX < sbRight && mouseY >= sbTop && mouseY < sbBottom) {
@@ -248,13 +388,10 @@ public class ServerDetailScreen extends Screen {
 
     private int maxSidebarScroll() {
         int h = PAD;
+        h += LABEL_H + Math.max(1, data.detectedGameAddresses.size()) * ITEM_H + 10;
         h += LABEL_H + Math.max(1, data.detectedAddresses.size()) * ITEM_H + 10;
-        int worldLines = 0;
-        for (ServerLogData.WorldSession ws : data.worlds) {
-            worldLines++;
-            if (ws.resourcePack != null) worldLines++;
-        }
-        h += LABEL_H + Math.max(1, worldLines) * ITEM_H;
+        h += LABEL_H + Math.max(1, data.worlds.size()) * ITEM_H + 10;
+        h += LABEL_H + Math.max(1, data.getResourcePacks().size()) * ITEM_H;
         return Math.max(0, h - (sbBottom - sbTop));
     }
 
@@ -267,28 +404,10 @@ public class ServerDetailScreen extends Screen {
     private String fitText(String s, int maxPx) {
         if (font.width(s) <= maxPx) return s;
         String ellipsis = "\u2026";
-        while (s.length() > 0 && font.width(s + ellipsis) > maxPx) {
+        while (!s.isEmpty() && font.width(s + ellipsis) > maxPx) {
             s = s.substring(0, s.length() - 1);
         }
         return s.isEmpty() ? ellipsis : s + ellipsis;
-    }
-
-    // Opens the server-logs directory in the OS file manager.
-    private void openLogsFolder() {
-        try {
-            Path logDir = FabricLoader.getInstance().getGameDir()
-                    .resolve(ServerLoggerMod.INSTANCE.config.logFolder);
-            Files.createDirectories(logDir);
-            String path = logDir.toAbsolutePath().toString();
-            String os   = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
-            ProcessBuilder pb = os.contains("win") ? new ProcessBuilder("explorer.exe", path)
-                              : os.contains("mac") ? new ProcessBuilder("open", path)
-                              :                      new ProcessBuilder("xdg-open", path);
-            pb.start();
-        } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Could not open logs folder: {}", e.getMessage());
-            ServerLoggerMod.sendMessage("Could not open logs folder: " + e.getMessage());
-        }
     }
 
     @Override

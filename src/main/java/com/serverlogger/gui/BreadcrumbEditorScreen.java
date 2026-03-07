@@ -12,27 +12,28 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.LinkedHashSet;
 
-public class GlossaryEditorScreen extends Screen {
+public class BreadcrumbEditorScreen extends Screen {
+
+    private static final int HEADER_H = 50;
+    private static final int FOOTER_H = 36;
 
     private final Screen parent;
-    private final Map<String, String> editedEntries;
-    private final Deque<Map<String, String>> undoStack = new ArrayDeque<>();
+    private final LinkedHashSet<String> editedServers;
+    private final Deque<LinkedHashSet<String>> undoStack = new ArrayDeque<>();
     private boolean keyHandlerRegistered = false;
 
-    private GlossaryListWidget listWidget;
-    private EditBox commandBox;
-    private EditBox pluginBox;
+    private BreadcrumbListWidget listWidget;
+    private EditBox serverBox;
     private Button undoBtn;
     private Button removeBtn;
 
-    public GlossaryEditorScreen(Screen parent) {
-        super(Component.literal("Glossary Editor"));
+    public BreadcrumbEditorScreen(Screen parent) {
+        super(Component.literal("Breadcrumb Editor"));
         this.parent = parent;
-        this.editedEntries = new LinkedHashMap<>(
-                ServerLoggerMod.INSTANCE.pluginGlossary.getEntries()
+        this.editedServers = new LinkedHashSet<>(
+                ServerLoggerMod.INSTANCE.breadcrumbResolver.getServers()
         );
     }
 
@@ -40,28 +41,24 @@ public class GlossaryEditorScreen extends Screen {
     protected void init() {
         int cx = width / 2;
 
-        commandBox = new EditBox(font, cx - 215, 25, 130, 20, Component.literal("command"));
-        commandBox.setHint(Component.literal("command"));
-        addRenderableWidget(commandBox);
-
-        pluginBox = new EditBox(font, cx - 80, 25, 130, 20, Component.literal("plugin name"));
-        pluginBox.setHint(Component.literal("plugin name"));
-        addRenderableWidget(pluginBox);
+        serverBox = new EditBox(font, cx - 215, 25, 260, 20, Component.literal("server address"));
+        serverBox.setHint(Component.literal("server address"));
+        addRenderableWidget(serverBox);
 
         addRenderableWidget(Button.builder(Component.literal("Add"), btn -> addEntry())
-                .bounds(cx + 55, 25, 45, 20).build());
+                .bounds(cx + 50, 25, 45, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("Import"), btn -> importFromFile())
-                .bounds(cx + 105, 25, 55, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Import"), btn -> openConfigDir())
+                .bounds(cx + 100, 25, 60, 20).build());
 
-        listWidget = new GlossaryListWidget(minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 22);
-        listWidget.updateEntries(editedEntries);
+        listWidget = new BreadcrumbListWidget(minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 22);
+        listWidget.updateEntries(editedServers);
         listWidget.setSelectionListener(this::updateButtonStates);
         addRenderableWidget(listWidget);
 
         int btnY = height - 30;
 
-        addRenderableWidget(Button.builder(Component.literal("Copy All"), btn -> exportToClipboard())
+        addRenderableWidget(Button.builder(Component.literal("Copy All"), btn -> copyAll())
                 .bounds(cx - 180, btnY, 75, 20).build());
 
         removeBtn = Button.builder(Component.literal("Remove"), btn -> removeSelected())
@@ -81,8 +78,7 @@ public class GlossaryEditorScreen extends Screen {
         if (!keyHandlerRegistered) {
             keyHandlerRegistered = true;
             ScreenKeyboardEvents.allowKeyPress(this).register((screen, key) -> {
-                boolean editBoxFocused = (commandBox != null && commandBox.isFocused())
-                        || (pluginBox != null && pluginBox.isFocused());
+                boolean editBoxFocused = serverBox != null && serverBox.isFocused();
                 int k = key.key();
                 if (!editBoxFocused) {
                     if ((k == GLFW.GLFW_KEY_DELETE || k == GLFW.GLFW_KEY_BACKSPACE)
@@ -103,32 +99,30 @@ public class GlossaryEditorScreen extends Screen {
     }
 
     private void pushUndo() {
-        undoStack.push(new LinkedHashMap<>(editedEntries));
+        undoStack.push(new LinkedHashSet<>(editedServers));
     }
 
     private void undo() {
         if (undoStack.isEmpty()) return;
-        Map<String, String> prev = undoStack.pop();
-        editedEntries.clear();
-        editedEntries.putAll(prev);
-        listWidget.updateEntries(editedEntries);
+        LinkedHashSet<String> prev = undoStack.pop();
+        editedServers.clear();
+        editedServers.addAll(prev);
+        listWidget.updateEntries(editedServers);
         updateButtonStates();
     }
 
     private void addEntry() {
-        String cmd    = commandBox.getValue().trim().toLowerCase();
-        String plugin = pluginBox.getValue().trim();
-        if (!cmd.isEmpty() && !plugin.isEmpty()) {
+        String server = serverBox.getValue().trim().toLowerCase(java.util.Locale.ROOT);
+        if (!server.isEmpty() && !editedServers.contains(server)) {
             pushUndo();
-            editedEntries.put(cmd, plugin);
-            listWidget.updateEntries(editedEntries);
-            commandBox.setValue("");
-            pluginBox.setValue("");
+            editedServers.add(server);
+            listWidget.updateEntries(editedServers);
+            serverBox.setValue("");
             updateButtonStates();
         }
     }
 
-    private void importFromFile() {
+    private void openConfigDir() {
         try {
             String path = FabricLoader.getInstance().getConfigDir().toAbsolutePath().toString();
             String os   = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT);
@@ -142,21 +136,20 @@ public class GlossaryEditorScreen extends Screen {
         }
     }
 
-    private void exportToClipboard() {
+    private void copyAll() {
         StringBuilder sb = new StringBuilder();
-        editedEntries.forEach((cmd, plugin) ->
-                sb.append(cmd).append('=').append(plugin).append('\n'));
-        minecraft.keyboardHandler.setClipboard(sb.toString());
+        editedServers.forEach(s -> sb.append(s).append('\n'));
+        minecraft.keyboardHandler.setClipboard(sb.toString().trim());
     }
 
     private void removeSelected() {
-        GlossaryListWidget.Entry selected = listWidget.getSelected();
+        BreadcrumbListWidget.Entry selected = listWidget.getSelected();
         if (selected == null) return;
 
         int idx = listWidget.getSelectedIndex();
         pushUndo();
-        editedEntries.remove(selected.getCommand());
-        listWidget.updateEntries(editedEntries);
+        editedServers.remove(selected.getServer());
+        listWidget.updateEntries(editedServers);
 
         if (!listWidget.children().isEmpty()) {
             listWidget.selectAt(Math.min(idx, listWidget.children().size() - 1));
@@ -165,8 +158,8 @@ public class GlossaryEditorScreen extends Screen {
     }
 
     private void saveAndClose() {
-        ServerLoggerMod.INSTANCE.pluginGlossary.setEntries(editedEntries);
-        ServerLoggerMod.INSTANCE.pluginGlossary.save();
+        ServerLoggerMod.INSTANCE.breadcrumbResolver.setServers(editedServers);
+        ServerLoggerMod.INSTANCE.breadcrumbResolver.save();
         minecraft.setScreen(parent);
     }
 
@@ -180,23 +173,16 @@ public class GlossaryEditorScreen extends Screen {
         minecraft.setScreen(parent);
     }
 
-    private static final int HEADER_H = 50;
-    private static final int FOOTER_H = 36;
-
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        // Body background
         graphics.fill(0, HEADER_H, width, height - FOOTER_H, 0xAA000010);
-        // Header panel
         graphics.fill(0, 0, width, HEADER_H, 0xCC050510);
         graphics.fill(0, HEADER_H - 1, width, HEADER_H, 0xFF334466);
-        // Footer panel
         graphics.fill(0, height - FOOTER_H,     width, height - FOOTER_H + 1, 0xFF334466);
         graphics.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
 
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
-        graphics.drawString(font, "Command:", width / 2 - 215, 13, 0xFFAAAAAA);
-        graphics.drawString(font, "Plugin:",  width / 2 - 78,  13, 0xFFAAAAAA);
+        graphics.drawString(font, "Server:", width / 2 - 215, 13, 0xFFAAAAAA);
     }
 }

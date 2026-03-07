@@ -76,10 +76,15 @@ public class ServerLogScreen extends Screen {
                 minecraft.setScreen(new GlossaryEditorScreen(this))
         ).bounds(cx + 55, 24, 65, 20).build());
 
+        // Breadcrumbs button
+        addRenderableWidget(Button.builder(Component.literal("Breadcrumbs"), btn ->
+                minecraft.setScreen(new BreadcrumbEditorScreen(this))
+        ).bounds(cx + 125, 24, 90, 20).build());
+
         // Options button — top-right corner
         addRenderableWidget(Button.builder(Component.literal("Options"), btn ->
                 minecraft.setScreen(new OptionsScreen(this))
-        ).bounds(width - 82, 8, 78, 18).build());
+        ).bounds(width - 88, 6, 84, 22).build());
 
         // Server list widget — body between header and footer
         listWidget = new ServerListWidget(this, minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 36);
@@ -88,28 +93,37 @@ public class ServerLogScreen extends Screen {
 
         int btnY = height - FOOTER_H + 8;
 
-        addRenderableWidget(Button.builder(Component.literal("Add"), btn ->
+        addRenderableWidget(Button.builder(Component.literal("Import"), btn ->
                 minecraft.setScreen(new AddServerScreen(this))
-        ).bounds(cx - 117, btnY, 45, 20).build());
+        ).bounds(cx - 115, btnY, 55, 20).build());
 
         removeBtn = Button.builder(Component.literal("Remove"), btn -> removeSelected())
-                .bounds(cx - 67, btnY, 65, 20).build();
+                .bounds(cx - 55, btnY, 65, 20).build();
         addRenderableWidget(removeBtn);
 
         undoBtn = Button.builder(Component.literal("Undo"), btn -> undoRemoval())
-                .bounds(cx - 2, btnY, 55, 20).build();
+                .bounds(cx + 15, btnY, 55, 20).build();
         addRenderableWidget(undoBtn);
 
         addRenderableWidget(Button.builder(Component.literal("Back"), btn ->
                 minecraft.setScreen(parent)
-        ).bounds(cx + 58, btnY, 60, 20).build());
+        ).bounds(cx + 75, btnY, 55, 20).build());
 
         if (!keyHandlerRegistered) {
             keyHandlerRegistered = true;
             ScreenKeyboardEvents.allowKeyPress(this).register((screen, key) -> {
-                if (key.key() == GLFW.GLFW_KEY_DELETE && listWidget != null && listWidget.getSelected() != null) {
-                    removeSelected();
-                    return false;
+                int k = key.key();
+                boolean searchFocused = searchBox != null && searchBox.isFocused();
+                if (!searchFocused) {
+                    if ((k == GLFW.GLFW_KEY_DELETE || k == GLFW.GLFW_KEY_BACKSPACE)
+                            && listWidget != null && listWidget.getSelected() != null) {
+                        removeSelected();
+                        return false;
+                    }
+                    if (k == GLFW.GLFW_KEY_Z && (key.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0) {
+                        undoRemoval();
+                        return false;
+                    }
                 }
                 return true;
             });

@@ -30,7 +30,6 @@ public class ConfigManager {
             if (obj.has("showToasts"))    showToasts    = obj.get("showToasts").getAsBoolean();
             if (obj.has("showMessages"))  showMessages  = obj.get("showMessages").getAsBoolean();
         } catch (Exception e) {
-            ServerLoggerMod.LOGGER.warn("[Server Logger] Failed to load config, using defaults: {}", e.getMessage());
             ServerLoggerMod.sendMessage("Failed to load config: " + e.getMessage());
         }
     }

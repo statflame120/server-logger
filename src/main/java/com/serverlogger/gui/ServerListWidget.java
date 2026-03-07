@@ -1,6 +1,5 @@
 package com.serverlogger.gui;
 
-import com.serverlogger.ServerLoggerMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -36,8 +35,6 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
         for (ServerLogData data : filtered) {
             addEntry(new Entry(data));
         }
-        ServerLoggerMod.LOGGER.info("[Server Logger] Widget has {} entries, widget Y={} H={} rowWidth={}",
-                children().size(), getY(), getHeight(), getRowWidth());
     }
 
     @Override
@@ -66,17 +63,10 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
             return data;
         }
 
-        private boolean loggedOnce = false;
-
         @Override
         public void renderContent(GuiGraphics graphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
-            if (!loggedOnce) {
-                ServerLoggerMod.LOGGER.info("[Server Logger] renderContent called for '{}' x={} y={} w={} h={}",
-                        data.getDisplayName(), getX(), getY(), getWidth(), getHeight());
-                loggedOnce = true;
-            }
             int left = getContentX();
-            int top = getContentY();
+            int top  = getContentY();
 
             graphics.drawString(minecraft.font, data.getDisplayName(), left + 3, top + 2, 0xFFFFFFFF);
 
@@ -90,6 +80,11 @@ public class ServerListWidget extends ObjectSelectionList<ServerListWidget.Entry
         public boolean mouseClicked(MouseButtonEvent event, boolean bl) {
             if (event.button() == 0) {
                 ServerListWidget.this.setSelected(this);
+                return true;
+            }
+            if (event.button() == 1) {
+                // Right-click copies the display name
+                Minecraft.getInstance().keyboardHandler.setClipboard(data.getDisplayName());
                 return true;
             }
             return false;
