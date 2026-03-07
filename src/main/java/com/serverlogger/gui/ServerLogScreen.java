@@ -81,10 +81,10 @@ public class ServerLogScreen extends Screen {
                 minecraft.setScreen(new BreadcrumbEditorScreen(this))
         ).bounds(cx + 125, 24, 90, 20).build());
 
-        // Options button — top-right corner
+        // Options button — top-right, vertically centred in header
         addRenderableWidget(Button.builder(Component.literal("Options"), btn ->
                 minecraft.setScreen(new OptionsScreen(this))
-        ).bounds(width - 88, 6, 84, 22).build());
+        ).bounds(width - 100, (HEADER_H - 22) / 2, 84, 22).build());
 
         // Server list widget — body between header and footer
         listWidget = new ServerListWidget(this, minecraft, width, height - HEADER_H - FOOTER_H, HEADER_H, 36);
