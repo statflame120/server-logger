@@ -30,10 +30,8 @@ public class ServerLogData {
     public final String version;
     public final List<String>       plugins;
     public final List<String>       detectedAddresses;
+    public final List<String>       detectedGameAddresses;
     public final List<WorldSession> worlds;
-
-    public final String dimension;
-    public final String resourcePack;
 
     public ServerLogData(String fileName, JsonObject root) {
         this.fileName  = fileName;
@@ -58,32 +56,53 @@ public class ServerLogData {
             }
         }
 
-        this.detectedAddresses = new ArrayList<>();
+        java.util.LinkedHashSet<String> addrSet = new java.util.LinkedHashSet<>();
         if (root.has("detected_addresses")) {
             for (JsonElement el : root.getAsJsonArray("detected_addresses")) {
-                detectedAddresses.add(el.getAsString());
+                addrSet.add(el.getAsString());
             }
         }
+        this.detectedAddresses = new ArrayList<>(addrSet);
 
-        this.worlds = new ArrayList<>();
+        java.util.LinkedHashSet<String> gameAddrSet = new java.util.LinkedHashSet<>();
+        if (root.has("detected_game_addresses")) {
+            for (JsonElement el : root.getAsJsonArray("detected_game_addresses")) {
+                gameAddrSet.add(el.getAsString());
+            }
+        }
+        this.detectedGameAddresses = new ArrayList<>(gameAddrSet);
+
+        List<WorldSession> rawWorlds = new ArrayList<>();
         if (root.has("worlds")) {
             for (JsonElement el : root.getAsJsonArray("worlds")) {
                 if (!el.isJsonObject()) continue;
                 JsonObject w = el.getAsJsonObject();
-                String ts  = w.has("timestamp")    ? w.get("timestamp").getAsString()    : "unknown";
-                String dim = w.has("dimension")    ? w.get("dimension").getAsString()    : "unknown";
+                String ts  = w.has("timestamp")     ? w.get("timestamp").getAsString()     : "unknown";
+                String dim = w.has("dimension")     ? w.get("dimension").getAsString()     : "unknown";
                 String rp  = w.has("resource_pack") ? w.get("resource_pack").getAsString() : null;
-                worlds.add(new WorldSession(ts, dim, rp));
+                rawWorlds.add(new WorldSession(ts, dim, rp));
             }
         } else if (root.has("world")) {
             JsonObject world = root.getAsJsonObject("world");
-            String dim = world.has("dimension")    ? world.get("dimension").getAsString()    : "unknown";
+            String dim = world.has("dimension")     ? world.get("dimension").getAsString()     : "unknown";
             String rp  = world.has("resource_pack") ? world.get("resource_pack").getAsString() : null;
-            worlds.add(new WorldSession(this.timestamp, dim, rp));
+            rawWorlds.add(new WorldSession(this.timestamp, dim, rp));
+        }
+        java.util.LinkedHashSet<String> seenWorldKeys = new java.util.LinkedHashSet<>();
+        this.worlds = new ArrayList<>();
+        for (WorldSession ws : rawWorlds) {
+            String key = ws.dimension + "|" + (ws.resourcePack != null ? ws.resourcePack : "");
+            if (seenWorldKeys.add(key)) this.worlds.add(ws);
         }
 
-        this.dimension   = worlds.isEmpty() ? "unknown" : worlds.get(0).dimension;
-        this.resourcePack = worlds.isEmpty() ? null : worlds.get(0).resourcePack;
+    }
+
+    public List<String> getResourcePacks() {
+        java.util.LinkedHashSet<String> seen = new java.util.LinkedHashSet<>();
+        for (WorldSession ws : worlds) {
+            if (ws.resourcePack != null && !ws.resourcePack.isBlank()) seen.add(ws.resourcePack);
+        }
+        return new ArrayList<>(seen);
     }
 
     public String getDisplayName() {

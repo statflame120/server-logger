@@ -136,7 +136,4 @@ public class PluginScanner {
             ServerLoggerMod.INSTANCE.dataCollector.onPluginsDetected(new ArrayList<>(merged));
         }
     }
-
-    public List<String> getCommandTreePlugins() { return Collections.unmodifiableList(commandTreePlugins); }
-    public List<String> getTabCompletePlugins()  { return Collections.unmodifiableList(tabCompletePlugins); }
 }

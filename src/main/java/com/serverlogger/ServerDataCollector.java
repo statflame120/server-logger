@@ -24,10 +24,12 @@ public class ServerDataCollector {
     private List<String> plugins         = new ArrayList<>();
     private boolean      pluginsReceived = false;
 
-    private final Set<String> detectedAddresses = new LinkedHashSet<>();
+    private final Set<String> detectedAddresses     = new LinkedHashSet<>();
+    private final Set<String> detectedGameAddresses = new LinkedHashSet<>();
 
-    private boolean joined    = false;
-    private int     pollTicks = 0;
+    private boolean joined           = false;
+    private boolean onBreadcrumbServer = false;
+    private int     pollTicks        = 0;
     private static final int POLL_INTERVAL = 20;
     private static final int MAX_POLL_TIME = 200;
 
@@ -39,28 +41,54 @@ public class ServerDataCollector {
             version = SharedConstants.getCurrentVersion().name();
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read MC version: {}", e.getMessage());
-            ServerLoggerMod.sendMessage("Could not read MC version: " + e.getMessage());
         }
 
+        // ── Primary: use the address the player actually typed (ignores proxies) ──
+        try {
+            var serverData = client.getCurrentServer();
+            if (serverData != null && serverData.ip != null && !serverData.ip.isBlank()) {
+                String addr = serverData.ip;
+                // addr may be "host:port" or bare "host"
+                int colonIdx = addr.lastIndexOf(':');
+                if (colonIdx > 0 && colonIdx < addr.length() - 1) {
+                    domain = addr.substring(0, colonIdx).trim();
+                    try { port = Integer.parseInt(addr.substring(colonIdx + 1).trim()); }
+                    catch (NumberFormatException ignored) {}
+                } else {
+                    domain = addr.trim();
+                }
+            }
+        } catch (Exception ignored) {}
+
+        // ── Fallback: resolve from the actual socket address ──────────────────────
         try {
             InetSocketAddress addr =
                     (InetSocketAddress) handler.getConnection().getRemoteAddress();
-            ip     = addr.getAddress().getHostAddress();
-            port   = addr.getPort();
-            domain = addr.getHostName();
+            ip = addr.getAddress().getHostAddress();
+            if (port == 25565) port = addr.getPort();
+            if ("unknown".equals(domain)) domain = addr.getHostName();
         } catch (Exception e) {
             ServerLoggerMod.sendMessage("Could not read server address: " + e.getMessage());
         }
 
+        // ── Brand / software ──────────────────────────────────────────────────────
         try {
             String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                     handler).getServerBrand();
-            if (brand != null && !brand.isBlank()) {
-                software = brand;
-            }
+            if (brand != null && !brand.isBlank()) software = brand;
         } catch (Exception ignored) {}
 
-        ServerLoggerMod.LOGGER.info("[Server Logger] Joined server {}:{} ({}) software={}", ip, port, domain, software);
+        // ── Breadcrumb detection ──────────────────────────────────────────────────
+        if (ServerLoggerMod.INSTANCE != null
+                && ServerLoggerMod.INSTANCE.breadcrumbResolver.isBreadcrumbServer(domain)) {
+            onBreadcrumbServer = true;
+            ServerLoggerMod.INSTANCE.breadcrumbResolver.reset();
+            ServerLoggerMod.INSTANCE.breadcrumbResolver.setProxyDomain(domain);
+            ServerLoggerMod.LOGGER.info("[Server Logger] Breadcrumb server: {} — scanning for real domain", domain);
+            ServerLoggerMod.sendMessage("Breadcrumb server detected (" + domain + ") — scanning for real domain…");
+        }
+
+        ServerLoggerMod.LOGGER.info("[Server Logger] Joined {}:{} ({}) software={}", ip, port, domain, software);
         ServerLoggerMod.sendMessage("Joined " + ip + ":" + port + " (" + domain + ") — software: " + software);
     }
 
@@ -77,9 +105,7 @@ public class ServerDataCollector {
             Minecraft mc = Minecraft.getInstance();
             ConfigManager cfg = ServerLoggerMod.INSTANCE.config;
             mc.execute(() -> {
-                if (cfg.autoClipboard) {
-                    mc.keyboardHandler.setClipboard(pluginStr);
-                }
+                if (cfg.autoClipboard) mc.keyboardHandler.setClipboard(pluginStr);
                 if (cfg.showToasts) {
                     SystemToast.add(
                             mc.getToastManager(),
@@ -98,23 +124,40 @@ public class ServerDataCollector {
     public void onResourcePack(String url) {
         if (url != null && !url.isBlank()) {
             resourcePack = url;
-            detectedAddresses.addAll(UrlExtractor.extract(url));
+            addExtractedUrls(url);
         }
     }
 
     public void onServerBrand(String brand) {
-        if (brand != null && !brand.isBlank()) {
-            software = brand;
-        }
+        if (brand != null && !brand.isBlank()) software = brand;
     }
 
     public void onDimension(String dimensionId) {
         if (dimensionId != null) dimension = dimensionId;
+        // On a breadcrumb server every world-change / server-switch resets the
+        // resolution state and immediately re-scans the new server's UI data.
+        if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
+            ServerLoggerMod.INSTANCE.breadcrumbResolver.reset();
+            pollTicks = 0;
+            // Schedule on the main thread so scoreboard / tab-list are readable.
+            Minecraft.getInstance().execute(() -> {
+                Minecraft client = Minecraft.getInstance();
+                if (client.getConnection() != null) doScan(client);
+                if (applyResolvedDomain()) JsonLogger.write(this);
+            });
+        }
     }
 
     public void onChatMessage(String plainText) {
         if (plainText == null || plainText.isBlank()) return;
-        detectedAddresses.addAll(UrlExtractor.extract(plainText));
+        addExtractedUrls(plainText);
+        if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
+            ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(plainText);
+            // Apply and log on the main thread immediately after resolution.
+            Minecraft.getInstance().execute(() -> {
+                if (applyResolvedDomain()) JsonLogger.write(this);
+            });
+        }
     }
 
     public void tick(Minecraft client) {
@@ -125,30 +168,46 @@ public class ServerDataCollector {
         if (pollTicks % POLL_INTERVAL != 0) return;
         if (pollTicks > MAX_POLL_TIME) return;
 
+        // Brand polling
         if ("unknown".equals(software)) {
             try {
                 String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                         client.getConnection()).getServerBrand();
-                if (brand != null && !brand.isBlank()) {
-                    software = brand;
-                }
-            } catch (Exception e) {
-            }
+                if (brand != null && !brand.isBlank()) software = brand;
+            } catch (Exception ignored) {}
         }
 
+        doScan(client);
+
+        if (applyResolvedDomain()) JsonLogger.write(this);
+    }
+
+    /** Scrapes scoreboard and tab-list for URLs (and breadcrumb domain resolution). */
+    private void doScan(Minecraft client) {
+        // Scoreboard
         if (client.level != null) {
             client.level.getScoreboard().getObjectives().forEach(obj -> {
                 String text = obj.getDisplayName().getString();
-                detectedAddresses.addAll(UrlExtractor.extract(text));
+                addExtractedUrls(text);
+                if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
+                    ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(text);
+                }
             });
         }
 
-        client.getConnection().getOnlinePlayers().forEach(info -> {
-            var display = info.getTabListDisplayName();
-            if (display != null) {
-                detectedAddresses.addAll(UrlExtractor.extract(display.getString()));
-            }
-        });
+        // Tab-list player entries
+        if (client.getConnection() != null) {
+            client.getConnection().getOnlinePlayers().forEach(info -> {
+                var display = info.getTabListDisplayName();
+                if (display != null) {
+                    String text = display.getString();
+                    addExtractedUrls(text);
+                    if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
+                        ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(text);
+                    }
+                }
+            });
+        }
     }
 
     public void reset() {
@@ -158,27 +217,59 @@ public class ServerDataCollector {
         resourcePack = null;
         plugins.clear();
         detectedAddresses.clear();
-        pluginsReceived = false;
-        joined    = false;
-        pollTicks = 0;
+        detectedGameAddresses.clear();
+        pluginsReceived   = false;
+        joined            = false;
+        onBreadcrumbServer = false;
+        pollTicks         = 0;
     }
 
     private void attemptWrite() {
+        // Ensure domain reflects the real sub-server before writing plugin log.
+        applyResolvedDomain();
         if ("unknown".equals(software)) {
             try {
                 var mc = Minecraft.getInstance();
                 if (mc.getConnection() != null) {
                     String brand = ((com.serverlogger.mixin.accessor.ClientCommonListenerAccessor)
                             mc.getConnection()).getServerBrand();
-                    if (brand != null && !brand.isBlank()) {
-                        software = brand;
-                    }
+                    if (brand != null && !brand.isBlank()) software = brand;
                 }
             } catch (Exception ignored) {}
         }
         JsonLogger.write(this);
     }
 
-    public List<String> getPlugins()           { return Collections.unmodifiableList(plugins); }
-    public Set<String>  getDetectedAddresses() { return Collections.unmodifiableSet(detectedAddresses); }
+    /**
+     * If the breadcrumb resolver has identified a new sub-server domain,
+     * update {@code domain} and return {@code true} so the caller can write
+     * a JSON log for the newly detected server.
+     */
+    private boolean applyResolvedDomain() {
+        if (!onBreadcrumbServer || ServerLoggerMod.INSTANCE == null) return false;
+        String resolved = ServerLoggerMod.INSTANCE.breadcrumbResolver.getResolvedDomain();
+        if (resolved != null && !resolved.equals(domain)) {
+            ServerLoggerMod.sendMessage("Real domain found: " + resolved);
+            domain = resolved;
+            return true;
+        }
+        return false;
+    }
+
+    /** True if the candidate is a bare Minecraft-style server address (no scheme, no path). */
+    private static boolean isGameAddress(String candidate) {
+        return !candidate.contains("://") && !candidate.contains("/");
+    }
+
+    /** Classifies each extracted URL and routes it to the appropriate set. */
+    private void addExtractedUrls(String text) {
+        for (String addr : UrlExtractor.extract(text)) {
+            if (isGameAddress(addr)) detectedGameAddresses.add(addr);
+            else detectedAddresses.add(addr);
+        }
+    }
+
+    public List<String> getPlugins()               { return Collections.unmodifiableList(plugins); }
+    public Set<String>  getDetectedAddresses()     { return Collections.unmodifiableSet(detectedAddresses); }
+    public Set<String>  getDetectedGameAddresses() { return Collections.unmodifiableSet(detectedGameAddresses); }
 }

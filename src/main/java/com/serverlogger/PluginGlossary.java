@@ -146,11 +146,4 @@ public class PluginGlossary {
         return Collections.unmodifiableMap(entries);
     }
 
-    public void addEntry(String command, String plugin) {
-        entries.put(command.toLowerCase().trim(), plugin.trim());
-    }
-
-    public void removeEntry(String command) {
-        entries.remove(command.toLowerCase().trim());
-    }
 }
