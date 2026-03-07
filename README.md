@@ -1,6 +1,6 @@
 # Server Logger
 
-A Fabric client-side mod for Minecraft that automatically detects and records server plugins, connection metadata, and world history whenever you join a multiplayer server.
+A Fabric client-side mod for Minecraft that automatically detects and records server plugins, connection metadata, and world info whenever you join a multiplayer server.
 
 ---
 
