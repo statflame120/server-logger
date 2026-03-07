@@ -27,6 +27,8 @@ Rebindable in **Options → Controls → Miscellaneous**.
 ---
 
 ## GUI Overview
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/f4401f9e-48be-4fe3-9fd3-81549c5faed0" />
+
 
 ### Server List screen (`Z`)
 
@@ -41,6 +43,7 @@ The main screen lists every logged server, sorted by most recently visited.
 - **Options:** open the options screen (top-right corner)
 
 ### Server Detail screen
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/ad4bf1e2-6bb1-49d7-bc7f-6e04d16aab6f" />
 
 A two-panel layout showing full information for one server.
 
@@ -51,6 +54,7 @@ A two-panel layout showing full information for one server.
 - **Copy Plugins:** copies the full plugin list to clipboard as a comma-separated string
 
 ### Glossary Editor screen
+<img width="1896" height="1076" alt="image" src="https://github.com/user-attachments/assets/42fddebf-e448-418c-9eac-c22417439cc8" />
 
 Map custom command names to plugin names. Changes are saved immediately and persist across restarts — the hardcoded defaults are only written on the very first launch and are never re-applied.
 
@@ -61,6 +65,7 @@ Map custom command names to plugin names. Changes are saved immediately and pers
 - **Save:** persists changes to disk; **Back** discards unsaved changes
 
 ### Options screen
+<img width="1898" height="1079" alt="image" src="https://github.com/user-attachments/assets/2c68fb57-2996-4de7-9eeb-d27c1423de1e" />
 
 Accessible via the **Options** button in the top-right of the Server List screen.
 
