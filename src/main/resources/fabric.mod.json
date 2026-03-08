@@ -1,8 +1,8 @@
 {
 	"schemaVersion": 1,
-	"id": "server-logger",
+	"id": "archivist",
 	"version": "${version}",
-	"name": "Server Logger",
+	"name": "Archivist",
 	"description": "Automatically logs server plugins, brand, world info, and addresses on join.",
 	"authors": ["apple"],
 	"contact": {},
@@ -10,11 +10,11 @@
 	"environment": "client",
 	"entrypoints": {
 		"client": [
-			"com.serverlogger.ServerLoggerMod"
+			"com.archivist.ArchivistMod"
 		]
 	},
 	"mixins": [
-		"serverlogger.mixins.json"
+		"archivist.mixins.json"
 	],
 	"depends": {
 		"fabricloader": ">=0.18.1",

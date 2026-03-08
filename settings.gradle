@@ -23,4 +23,4 @@ stonecutter {
 	}
 }
 
-rootProject.name = 'server-logger'
+rootProject.name = 'archivist'
