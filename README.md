@@ -1,4 +1,4 @@
-# Server Logger
+# Archivist
 
 A Fabric client-side mod for Minecraft that automatically detects and records server plugins, connection metadata, and world info whenever you join a multiplayer server.
 
