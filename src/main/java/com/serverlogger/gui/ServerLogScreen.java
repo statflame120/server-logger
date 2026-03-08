@@ -93,10 +93,6 @@ public class ServerLogScreen extends Screen {
 
         int btnY = height - FOOTER_H + 8;
 
-        addRenderableWidget(Button.builder(Component.literal("Import"), btn ->
-                minecraft.setScreen(new AddServerScreen(this))
-        ).bounds(cx - 115, btnY, 55, 20).build());
-
         removeBtn = Button.builder(Component.literal("Remove"), btn -> removeSelected())
                 .bounds(cx - 55, btnY, 65, 20).build();
         addRenderableWidget(removeBtn);
@@ -230,6 +226,11 @@ public class ServerLogScreen extends Screen {
     private void updateButtonStates() {
         if (undoBtn != null)   undoBtn.active   = !undoStack.isEmpty();
         if (removeBtn != null) removeBtn.active = listWidget.getSelected() != null;
+    }
+
+    @Override
+    public void onClose() {
+        minecraft.setScreen(parent);
     }
 
     public void openDetail(ServerLogData data) {

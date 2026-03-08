@@ -138,8 +138,7 @@ public class UrlExtractor {
 
         // 3. IP validity checking, 2 dots
         if (DIGITS_AND_DOTS.matcher(lower).matches()) {
-            int dots = (int) lower.chars().filter(c -> c == '.').count();
-            return dots != 2;
+            return !isValidIPv4(lower);
         }
 
         // 4. Blacklist

@@ -13,7 +13,7 @@ import java.util.Locale;
 
 public class AddServerScreen extends Screen {
 
-    private static final int HEADER_H = 36;
+    private static final int HEADER_H = 50;
     private static final int FOOTER_H = 36;
 
     private final Screen parent;
@@ -33,7 +33,7 @@ public class AddServerScreen extends Screen {
                 .bounds(cx - 80, btnY, 110, 20).build());
 
         addRenderableWidget(Button.builder(
-                Component.literal("Back"), btn -> minecraft.setScreen(parent))
+                Component.literal("Back"), btn -> onClose())
                 .bounds(cx + 35, btnY, 45, 20).build());
     }
 
@@ -62,7 +62,7 @@ public class AddServerScreen extends Screen {
         g.fill(0, height - FOOTER_H + 1, width, height,                 0xCC050510);
 
         super.render(g, mouseX, mouseY, partialTick);
-        g.drawCenteredString(font, title, width / 2, 12, 0xFFFFFFFF);
+        g.drawCenteredString(font, title, width / 2, 8, 0xFFFFFFFF);
 
         int cx      = width / 2;
         int bodyMid = HEADER_H + (height - HEADER_H - FOOTER_H) / 2;

@@ -20,8 +20,14 @@ public class BreadcrumbResolver {
 
     private final Set<String> breadcrumbServers = new LinkedHashSet<>();
 
+    private static final List<String> KNOWN_HOSTING_DOMAINS = List.of(
+            "minehut.gg", "hypixel.net", "mineplex.com", "cubecraft.net", "hivemc.com",
+            "tebex.io", "mc.gg", "fallentech.net", "minecraftforge.net"
+    );
+
     /** First non-breadcrumb hostname found in scraped text, or null. */
     private volatile String resolvedDomain = null;
+    private int resolvedScore = -1;
 
     /** The proxy domain we connected through (e.g. "minehut.com"), set when breadcrumb mode activates. */
     private String proxyDomain = null;
@@ -91,7 +97,8 @@ public class BreadcrumbResolver {
      * back to the old breadcrumb-keyword filter.
      */
     public void tryResolve(String text) {
-        if (resolvedDomain != null || text == null || text.isBlank()) return;
+        if (text == null || text.isBlank()) return;
+        List<String> candidates = new ArrayList<>();
         for (String candidate : UrlExtractor.extract(text)) {
             // Only bare hostnames qualify as game addresses — skip anything
             // with a scheme (https://) or path (/shop) which is a website.
@@ -105,13 +112,37 @@ public class BreadcrumbResolver {
             boolean differs = proxyDomain == null
                     ? !isBreadcrumbServer(candidate)
                     : !hostname.equals(proxyDomain);
-            if (differs) {
-                resolvedDomain = candidate;
-                ServerLoggerMod.LOGGER.info(
-                        "[Server Logger] Breadcrumb domain resolved: {}", resolvedDomain);
-                return;
-            }
+            if (differs) candidates.add(candidate);
         }
+        if (candidates.isEmpty()) return;
+        String best = pickBestAddress(candidates);
+        int score = scoreAddress(best);
+        if (score > resolvedScore) {
+            resolvedScore = score;
+            resolvedDomain = best;
+            ServerLoggerMod.LOGGER.info(
+                    "[Server Logger] Breadcrumb domain resolved: {}", resolvedDomain);
+        }
+    }
+
+    private int scoreAddress(String address) {
+        String lower = address.toLowerCase(Locale.ROOT).split("[:/]")[0];
+        for (int i = 0; i < KNOWN_HOSTING_DOMAINS.size(); i++) {
+            String domain = KNOWN_HOSTING_DOMAINS.get(i);
+            if (lower.equals(domain) || lower.endsWith("." + domain)) return 1000 - i;
+        }
+        if (lower.contains(".") && lower.matches("[a-zA-Z0-9._-]+")) return 500;
+        return 0;
+    }
+
+    private String pickBestAddress(List<String> candidates) {
+        String best = candidates.get(0);
+        int bestScore = scoreAddress(best);
+        for (int i = 1; i < candidates.size(); i++) {
+            int s = scoreAddress(candidates.get(i));
+            if (s > bestScore) { bestScore = s; best = candidates.get(i); }
+        }
+        return best;
     }
 
     /** The real domain found by scraping, or {@code null} if not yet found. */
@@ -126,7 +157,7 @@ public class BreadcrumbResolver {
     }
 
     /** Clear the resolved sub-server domain (keeps proxyDomain for continued filtering). */
-    public void reset() { resolvedDomain = null; }
+    public void reset() { resolvedDomain = null; resolvedScore = -1; }
 
     // ── List management ───────────────────────────────────────────────────────
 

@@ -7,8 +7,8 @@
 		"ClientPacketListenerMixin",
 		"ClientCommonListenerMixin",
 		"accessor.ClientCommonListenerAccessor",
-		"TitleScreenMixin",
-		"ScreenAccessor"
+		"JoinMultiplayerScreenMixin",
+		"ServerLogScreenMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
