@@ -21,15 +21,17 @@ public class ServerDataCollector {
     public String dimension    = "minecraft:overworld";
     public String resourcePack = null;
 
+    public  int     playerCount      = 0;
     private List<String> plugins         = new ArrayList<>();
     private boolean      pluginsReceived = false;
 
     private final Set<String> detectedAddresses     = new LinkedHashSet<>();
     private final Set<String> detectedGameAddresses = new LinkedHashSet<>();
 
-    private boolean joined           = false;
+    private boolean joined             = false;
     private boolean onBreadcrumbServer = false;
-    private int     pollTicks        = 0;
+    private String  breadcrumbProxyAddress = null;
+    private int     pollTicks          = 0;
     private static final int POLL_INTERVAL = 20;
     private static final int MAX_POLL_TIME = 200;
 
@@ -45,6 +47,12 @@ public class ServerDataCollector {
         } catch (Exception e) {
             ServerLoggerMod.LOGGER.warn("[Server Logger] Could not read MC version: {}", e.getMessage());
         }
+
+        // ── Player count from server-list ping data ───────────────────────────────
+        try {
+            var sd = client.getCurrentServer();
+            if (sd != null && sd.players != null) playerCount = sd.players.online();
+        } catch (Exception ignored) {}
 
         // ── Primary: use the address the player actually typed (ignores proxies) ──
         try {
@@ -85,6 +93,7 @@ public class ServerDataCollector {
         if (ServerLoggerMod.INSTANCE != null
                 && ServerLoggerMod.INSTANCE.breadcrumbResolver.isBreadcrumbServer(domain)) {
             onBreadcrumbServer = true;
+            breadcrumbProxyAddress = domain;
             ServerLoggerMod.INSTANCE.breadcrumbResolver.reset();
             ServerLoggerMod.INSTANCE.breadcrumbResolver.setProxyDomain(domain);
             ServerLoggerMod.LOGGER.info("[Server Logger] Breadcrumb server: {} — scanning for real domain", domain);
@@ -157,13 +166,6 @@ public class ServerDataCollector {
     public void onChatMessage(String plainText) {
         if (plainText == null || plainText.isBlank()) return;
         addExtractedUrls(plainText);
-        if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
-            ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(plainText);
-            // Apply and log on the main thread immediately after resolution.
-            Minecraft.getInstance().execute(() -> {
-                if (applyResolvedDomain()) JsonLogger.write(this);
-            });
-        }
     }
 
     public void tick(Minecraft client) {
@@ -172,7 +174,16 @@ public class ServerDataCollector {
 
         pollTicks++;
         if (pollTicks % POLL_INTERVAL != 0) return;
-        if (pollTicks > MAX_POLL_TIME) return;
+        if (pollTicks > MAX_POLL_TIME) {
+            // Timed out without finding a real sub-server domain.
+            if (onBreadcrumbServer && domain.equals(breadcrumbProxyAddress)) {
+                if (breadcrumbProxyAddress != null) detectedGameAddresses.add(breadcrumbProxyAddress);
+                domain = "unknown";
+                onBreadcrumbServer = false;
+                JsonLogger.write(this);
+            }
+            return;
+        }
 
         // brand
         if ("unknown".equals(brand)) {
@@ -195,9 +206,6 @@ public class ServerDataCollector {
             client.level.getScoreboard().getObjectives().forEach(obj -> {
                 String text = obj.getDisplayName().getString();
                 addExtractedUrls(text);
-                if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
-                    ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(text);
-                }
             });
         }
 
@@ -208,9 +216,6 @@ public class ServerDataCollector {
                 if (display != null) {
                     String text = display.getString();
                     addExtractedUrls(text);
-                    if (onBreadcrumbServer && ServerLoggerMod.INSTANCE != null) {
-                        ServerLoggerMod.INSTANCE.breadcrumbResolver.tryResolve(text);
-                    }
                 }
             });
         }
@@ -224,14 +229,19 @@ public class ServerDataCollector {
         plugins.clear();
         detectedAddresses.clear();
         detectedGameAddresses.clear();
-        pluginsReceived   = false;
-        joined            = false;
-        onBreadcrumbServer = false;
-        pollTicks         = 0;
+        playerCount            = 0;
+        pluginsReceived        = false;
+        joined                 = false;
+        onBreadcrumbServer     = false;
+        breadcrumbProxyAddress = null;
+        pollTicks              = 0;
     }
 
     private void attemptWrite() {
-        applyResolvedDomain();
+        boolean resolved = applyResolvedDomain();
+        // On a breadcrumb server, never write using the proxy domain — wait for
+        // tab/scoreboard resolution or the poll-timeout fallback in tick().
+        if (onBreadcrumbServer && !resolved) return;
         if ("unknown".equals(brand)) {
             try {
                 var mc = Minecraft.getInstance();
@@ -246,17 +256,22 @@ public class ServerDataCollector {
     }
 
     /**
-     * If the breadcrumb resolver has identified a new sub-server domain,
-     * update {@code domain} and return {@code true} so the caller can write
-     * a JSON log for the newly detected server.
+     * If detectedGameAddresses contains a non-proxy entry, use the first one
+     * as {@code domain} and return {@code true} so the caller can write a JSON log.
      */
     private boolean applyResolvedDomain() {
-        if (!onBreadcrumbServer || ServerLoggerMod.INSTANCE == null) return false;
-        String resolved = ServerLoggerMod.INSTANCE.breadcrumbResolver.getResolvedDomain();
-        if (resolved != null && !resolved.equals(domain)) {
-            ServerLoggerMod.sendMessage("Real domain found: " + resolved);
-            domain = resolved;
-            return true;
+        if (!onBreadcrumbServer) return false;
+        String proxyLower = breadcrumbProxyAddress != null
+                ? breadcrumbProxyAddress.toLowerCase(Locale.ROOT).split("[:/]")[0] : null;
+        for (String addr : detectedGameAddresses) {
+            String hostLower = addr.toLowerCase(Locale.ROOT).split("[:/]")[0];
+            if (proxyLower != null && hostLower.equals(proxyLower)) continue;
+            if (!addr.equals(domain)) {
+                ServerLoggerMod.sendMessage("Real domain found: " + addr);
+                domain = addr;
+                return true;
+            }
+            return false; // first non-proxy entry already set as domain
         }
         return false;
     }

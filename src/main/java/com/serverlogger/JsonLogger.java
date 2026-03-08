@@ -100,11 +100,12 @@ public class JsonLogger {
             root.addProperty("timestamp", LocalDate.now().toString());
 
             JsonObject serverInfo = new JsonObject();
-            serverInfo.addProperty("ip",       data.ip);
-            serverInfo.addProperty("port",     data.port);
-            serverInfo.addProperty("domain",   data.domain);
-            serverInfo.addProperty("brand", data.brand);
-            serverInfo.addProperty("version",  data.version);
+            serverInfo.addProperty("ip",           data.ip);
+            serverInfo.addProperty("port",         data.port);
+            serverInfo.addProperty("domain",       data.domain);
+            serverInfo.addProperty("brand",        data.brand);
+            serverInfo.addProperty("version",      data.version);
+            serverInfo.addProperty("player_count", data.playerCount);
             root.add("server_info", serverInfo);
 
             root.add("plugins",                  finalPlugins);

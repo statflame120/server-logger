@@ -14,7 +14,7 @@ import java.util.List;
 
 public class ServerDetailScreen extends Screen {
 
-    private static final int HEADER_H  = 54;
+    private static final int HEADER_H  = 56;
     private static final int FOOTER_H  = 36;
     private static final int SIDEBAR_W = 170;
     private static final int GAP       = 5;
@@ -97,16 +97,20 @@ public class ServerDetailScreen extends Screen {
         headerCopyRegions.add(new CopyRegion(titleX, 5, font.width(displayName), displayName));
 
         // Row 1
-        addHeaderRegion(c1, 18, "IP: ",       data.ip + ":" + data.port);
-        addHeaderRegion(c2, 18, "Brand: ", data.brand);
-        addHeaderRegion(c3, 18, "Version: ",  data.version);
+        addHeaderRegion(c1, 18, "IP: ",      data.ip + ":" + data.port);
+        addHeaderRegion(c2, 18, "Brand: ",   data.brand);
+        addHeaderRegion(c3, 18, "Version: ", data.version);
 
-        // Row 2
+        // Row 2 — Players
+        String playersVal = data.playerCount >= 0 ? String.valueOf(data.playerCount) : "unknown";
+        addHeaderRegion(c1, 30, "Players: ", playersVal);
+
+        // Row 3
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
-            addHeaderRegion(c1, 30, "Domain: ", data.domain);
+            addHeaderRegion(c1, 42, "Domain: ", data.domain);
         }
-        addHeaderRegion(c2, 30, "Logged: ",  data.timestamp);
-        addHeaderRegion(c3, 30, "Plugins: ", String.valueOf(data.plugins.size()));
+        addHeaderRegion(c2, 42, "Logged: ",  data.timestamp);
+        addHeaderRegion(c3, 42, "Plugins: ", String.valueOf(data.plugins.size()));
     }
 
     private void addHeaderRegion(int x, int y, String label, String value) {
@@ -336,15 +340,18 @@ public class ServerDetailScreen extends Screen {
 
         int c1 = 8, c2 = width / 3, c3 = (2 * width) / 3;
 
-        drawLabel(g, "IP",       data.ip + ":" + data.port, c1, 18, 0xFFAAAAAA, 0xFFFFFFFF);
-        drawLabel(g, "Brand",    data.brand,                 c2, 18, 0xFFAAAAAA, 0xFFFFFFFF);
-        drawLabel(g, "Version",  data.version,               c3, 18, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(g, "IP",      data.ip + ":" + data.port, c1, 18, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(g, "Brand",   data.brand,                 c2, 18, 0xFFAAAAAA, 0xFFFFFFFF);
+        drawLabel(g, "Version", data.version,               c3, 18, 0xFFAAAAAA, 0xFFFFFFFF);
+
+        String playersVal = data.playerCount >= 0 ? String.valueOf(data.playerCount) : "unknown";
+        drawLabel(g, "Players", playersVal, c1, 30, 0xFFAAAAAA, 0xFFFFDD55);
 
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
-            drawLabel(g, "Domain", data.domain, c1, 30, 0xFFAAAAAA, 0xFF88AAFF);
+            drawLabel(g, "Domain", data.domain, c1, 42, 0xFFAAAAAA, 0xFF88AAFF);
         }
-        drawLabel(g, "Logged",  data.timestamp,                     c2, 30, 0xFFAAAAAA, 0xFFAAAAAA);
-        drawLabel(g, "Plugins", String.valueOf(data.plugins.size()), c3, 30, 0xFFAAAAAA, 0xFF55FF55);
+        drawLabel(g, "Logged",  data.timestamp,                     c2, 42, 0xFFAAAAAA, 0xFFAAAAAA);
+        drawLabel(g, "Plugins", String.valueOf(data.plugins.size()), c3, 42, 0xFFAAAAAA, 0xFF55FF55);
     }
 
     private void renderFooter(GuiGraphics g) {
