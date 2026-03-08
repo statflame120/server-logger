@@ -36,6 +36,7 @@ public class BreadcrumbResolver {
         // Shipped defaults
         breadcrumbServers.add("minehut.com");
         breadcrumbServers.add("minehut.gg");
+        breadcrumbServers.add("liquidproxy.net");
     }
 
     // ── Persistence ───────────────────────────────────────────────────────────
