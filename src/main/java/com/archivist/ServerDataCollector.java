@@ -28,8 +28,8 @@ public class ServerDataCollector {
     private final Set<String> detectedGameAddresses = new LinkedHashSet<>();
 
     private boolean joined             = false;
-    private boolean onBreadcrumbServer = false;
-    private String  breadcrumbProxyAddress = null;
+    private boolean onExceptionServer = false;
+    private String  exceptionProxyAddress = null;
     private int     pollTicks          = 0;
     private static final int POLL_INTERVAL = 20;
     private static final int MAX_POLL_TIME = 200;
@@ -88,15 +88,15 @@ public class ServerDataCollector {
             if (b != null && !b.isBlank()) brand = b;
         } catch (Exception ignored) {}
 
-        // ── Breadcrumb detection ──────────────────────────────────────────────────
+        // ── Exception detection ──────────────────────────────────────────────────
         if (ArchivistMod.INSTANCE != null
-                && ArchivistMod.INSTANCE.breadcrumbResolver.isBreadcrumbServer(domain)) {
-            onBreadcrumbServer = true;
-            breadcrumbProxyAddress = domain;
-            ArchivistMod.INSTANCE.breadcrumbResolver.reset();
-            ArchivistMod.INSTANCE.breadcrumbResolver.setProxyDomain(domain);
-            ArchivistMod.LOGGER.info("[Archivist] Breadcrumb server: {} — scanning for real domain", domain);
-            ArchivistMod.sendMessage("Breadcrumb server detected (" + domain + ") — scanning for real domain…");
+                && ArchivistMod.INSTANCE.exceptionResolver.isExceptionServer(domain)) {
+            onExceptionServer = true;
+            exceptionProxyAddress = domain;
+            ArchivistMod.INSTANCE.exceptionResolver.reset();
+            ArchivistMod.INSTANCE.exceptionResolver.setProxyDomain(domain);
+            ArchivistMod.LOGGER.info("[Archivist] Exception server: {} — scanning for real domain", domain);
+            ArchivistMod.sendMessage("Exception server detected (" + domain + ") — scanning for real domain…");
         }
 
         ArchivistMod.LOGGER.info("[Archivist] Joined {}:{} ({}) brand={}", ip, port, domain, brand);
@@ -148,10 +148,10 @@ public class ServerDataCollector {
 
     public void onDimension(String dimensionId) {
         if (dimensionId != null) dimension = dimensionId;
-        // On a breadcrumb server every world-change / server-switch resets the
+        // On a exception server every world-change / server-switch resets the
         // resolution state and immediately re-scans the new server's UI data.
-        if (onBreadcrumbServer && ArchivistMod.INSTANCE != null) {
-            ArchivistMod.INSTANCE.breadcrumbResolver.reset();
+        if (onExceptionServer && ArchivistMod.INSTANCE != null) {
+            ArchivistMod.INSTANCE.exceptionResolver.reset();
             pollTicks = 0;
             // Schedule on the main thread so scoreboard / tab-list are readable.
             Minecraft.getInstance().execute(() -> {
@@ -175,10 +175,10 @@ public class ServerDataCollector {
         if (pollTicks % POLL_INTERVAL != 0) return;
         if (pollTicks > MAX_POLL_TIME) {
             // Timed out without finding a real sub-server domain.
-            if (onBreadcrumbServer && domain.equals(breadcrumbProxyAddress)) {
-                if (breadcrumbProxyAddress != null) detectedGameAddresses.add(breadcrumbProxyAddress);
+            if (onExceptionServer && domain.equals(exceptionProxyAddress)) {
+                if (exceptionProxyAddress != null) detectedGameAddresses.add(exceptionProxyAddress);
                 domain = "unknown";
-                onBreadcrumbServer = false;
+                onExceptionServer = false;
                 JsonLogger.write(this);
             }
             return;
@@ -198,7 +198,7 @@ public class ServerDataCollector {
         if (applyResolvedDomain()) JsonLogger.write(this);
     }
 
-    //TAB and scoreboard for breadcrumbs
+    //TAB and scoreboard for exceptions
     private void doScan(Minecraft client) {
         // Scoreboard
         if (client.level != null) {
@@ -231,16 +231,16 @@ public class ServerDataCollector {
         playerCount            = 0;
         pluginsReceived        = false;
         joined                 = false;
-        onBreadcrumbServer     = false;
-        breadcrumbProxyAddress = null;
+        onExceptionServer     = false;
+        exceptionProxyAddress = null;
         pollTicks              = 0;
     }
 
     private void attemptWrite() {
         boolean resolved = applyResolvedDomain();
-        // On a breadcrumb server, never write using the proxy domain — wait for
+        // On a exception server, never write using the proxy domain — wait for
         // tab/scoreboard resolution or the poll-timeout fallback in tick().
-        if (onBreadcrumbServer && !resolved) return;
+        if (onExceptionServer && !resolved) return;
         if ("unknown".equals(brand)) {
             try {
                 var mc = Minecraft.getInstance();
@@ -259,9 +259,9 @@ public class ServerDataCollector {
      * as {@code domain} and return {@code true} so the caller can write a JSON log.
      */
     private boolean applyResolvedDomain() {
-        if (!onBreadcrumbServer) return false;
-        String proxyLower = breadcrumbProxyAddress != null
-                ? breadcrumbProxyAddress.toLowerCase(Locale.ROOT).split("[:/]")[0] : null;
+        if (!onExceptionServer) return false;
+        String proxyLower = exceptionProxyAddress != null
+                ? exceptionProxyAddress.toLowerCase(Locale.ROOT).split("[:/]")[0] : null;
         for (String addr : detectedGameAddresses) {
             String hostLower = addr.toLowerCase(Locale.ROOT).split("[:/]")[0];
             if (proxyLower != null && hostLower.equals(proxyLower)) continue;
