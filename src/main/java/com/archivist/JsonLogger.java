@@ -5,8 +5,8 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.time.LocalDate;
-import java.util.Objects;
+import java.time.Instant;
+import java.util.*;
 
 public class JsonLogger {
 
@@ -22,12 +22,8 @@ public class JsonLogger {
                     : data.ip.replaceAll("[^a-zA-Z0-9._-]", "_") + "_" + data.port;
             Path outFile = logDir.resolve(baseName + ".json");
 
-            JsonArray pluginsArr = new JsonArray();
-            for (String name : data.getPlugins()) {
-                JsonObject p = new JsonObject();
-                p.addProperty("name", name);
-                pluginsArr.add(p);
-            }
+            Set<String> newPluginNames = new LinkedHashSet<>();
+            for (String name : data.getPlugins()) newPluginNames.add(name);
 
             JsonArray addrArr = new JsonArray();
             data.getDetectedAddresses().forEach(addrArr::add);
@@ -35,15 +31,17 @@ public class JsonLogger {
             JsonArray gameAddrArr = new JsonArray();
             data.getDetectedGameAddresses().forEach(gameAddrArr::add);
 
+            String now = Instant.now().toString();
+
             JsonObject currentWorld = new JsonObject();
-            currentWorld.addProperty("timestamp", LocalDate.now().toString());
+            currentWorld.addProperty("timestamp", now);
             currentWorld.addProperty("dimension", data.dimension);
             if (data.resourcePack != null) {
                 currentWorld.addProperty("resource_pack", data.resourcePack);
             }
 
-            JsonArray finalPlugins = pluginsArr;
-            JsonArray worldsArr    = new JsonArray();
+            Set<String> mergedPluginNames = new LinkedHashSet<>(newPluginNames);
+            JsonArray worldsArr = new JsonArray();
 
             if (Files.exists(outFile)) {
                 try {
@@ -51,8 +49,15 @@ public class JsonLogger {
 
                     JsonArray existingPlugins = existing.has("plugins")
                             ? existing.getAsJsonArray("plugins") : null;
-                    if (existingPlugins != null && existingPlugins.size() > pluginsArr.size()) {
-                        finalPlugins = existingPlugins;
+                    if (existingPlugins != null) {
+                        for (JsonElement el : existingPlugins) {
+                            if (el.isJsonObject()) {
+                                JsonObject p = el.getAsJsonObject();
+                                if (p.has("name")) mergedPluginNames.add(p.get("name").getAsString());
+                            } else if (el.isJsonPrimitive()) {
+                                mergedPluginNames.add(el.getAsString());
+                            }
+                        }
                     }
 
                     if (existing.has("worlds")) {
@@ -62,7 +67,7 @@ public class JsonLogger {
                         JsonObject migrated = new JsonObject();
                         migrated.addProperty("timestamp", existing.has("timestamp")
                                 ? existing.get("timestamp").getAsString()
-                                : LocalDate.now().toString());
+                                : now);
                         if (oldWorld.has("dimension"))
                             migrated.addProperty("dimension", oldWorld.get("dimension").getAsString());
                         if (oldWorld.has("resource_pack"))
@@ -84,10 +89,6 @@ public class JsonLogger {
 
                     if (!worldExists) {
                         worldsArr.add(currentWorld);
-                    } else if (finalPlugins == pluginsArr && existingPlugins != null
-                            && existingPlugins.size() >= pluginsArr.size()) {
-                        ArchivistMod.sendMessage("No new data for " + outFile.getFileName() + ", skipping write");
-                        return;
                     }
 
                 } catch (Exception e) {
@@ -97,8 +98,17 @@ public class JsonLogger {
                 worldsArr.add(currentWorld);
             }
 
+            JsonArray finalPlugins = new JsonArray();
+            List<String> sortedPlugins = new ArrayList<>(mergedPluginNames);
+            sortedPlugins.sort(String.CASE_INSENSITIVE_ORDER);
+            for (String name : sortedPlugins) {
+                JsonObject p = new JsonObject();
+                p.addProperty("name", name);
+                finalPlugins.add(p);
+            }
+
             JsonObject root = new JsonObject();
-            root.addProperty("timestamp", LocalDate.now().toString());
+            root.addProperty("timestamp", now);
 
             JsonObject serverInfo = new JsonObject();
             serverInfo.addProperty("ip",           data.ip);

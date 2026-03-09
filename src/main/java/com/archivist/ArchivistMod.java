@@ -67,6 +67,7 @@ public class ArchivistMod implements ClientModInitializer {
         *///?}
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            if (!config.enabled) return;
             dataCollector.onServerJoin(handler, client);
             pluginScanner.onServerJoin(client);
         });
