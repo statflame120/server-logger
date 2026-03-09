@@ -29,6 +29,7 @@ public class ServerLogData {
     public final String brand;
     public final String version;
     public final int    playerCount;
+    public final String motd;
     public final List<String>       plugins;
     public final List<String>       detectedAddresses;
     public final List<String>       detectedGameAddresses;
@@ -46,6 +47,7 @@ public class ServerLogData {
                           : info.has("software") ? info.get("software").getAsString() : "unknown";
         this.version     = info.has("version")      ? info.get("version").getAsString()      : "unknown";
         this.playerCount = info.has("player_count") ? info.get("player_count").getAsInt()    : -1;
+        this.motd        = info.has("motd")          ? info.get("motd").getAsString()         : null;
 
         this.plugins = new ArrayList<>();
         if (root.has("plugins")) {
