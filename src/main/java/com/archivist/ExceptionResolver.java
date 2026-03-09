@@ -33,6 +33,7 @@ public class ExceptionResolver {
     private String proxyDomain = null;
 
     public ExceptionResolver() {
+        // Shipped defaults
         exceptionServers.add("minehut.com");
         exceptionServers.add("minehut.gg");
         exceptionServers.add("liquidproxy.net");
@@ -43,7 +44,6 @@ public class ExceptionResolver {
     public void load() {
         Path path = FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME);
         if (!Files.exists(path)) {
-            migrateOldConfig();
             save();
             return;
         }
@@ -56,22 +56,6 @@ public class ExceptionResolver {
             }
         } catch (Exception e) {
             ArchivistMod.LOGGER.warn("[Archivist] Failed to load exceptions: {}", e.getMessage());
-        }
-    }
-
-    private void migrateOldConfig() {
-        Path oldPath = FabricLoader.getInstance().getConfigDir().resolve("archivist-breadcrumbs.json");
-        if (!Files.exists(oldPath)) return;
-        try {
-            JsonObject obj = JsonParser.parseString(Files.readString(oldPath)).getAsJsonObject();
-            JsonArray arr  = obj.getAsJsonArray("servers");
-            if (arr != null) {
-                exceptionServers.clear();
-                arr.forEach(e -> exceptionServers.add(e.getAsString().toLowerCase(Locale.ROOT)));
-            }
-            ArchivistMod.LOGGER.info("[Archivist] Migrated breadcrumbs config to exceptions");
-        } catch (Exception e) {
-            ArchivistMod.LOGGER.warn("[Archivist] Failed to migrate old breadcrumbs config: {}", e.getMessage());
         }
     }
 
@@ -117,9 +101,14 @@ public class ExceptionResolver {
         if (text == null || text.isBlank()) return;
         List<String> candidates = new ArrayList<>();
         for (String candidate : UrlExtractor.extract(text)) {
+            // Only bare hostnames qualify as game addresses — skip anything
+            // with a scheme (https://) or path (/shop) which is a website.
             if (candidate.contains("://") || candidate.contains("/")) continue;
+            // Filter Bedrock/Geyser usernames (.PlayerName) which have a single
+            // leading dot and no further dots — real subdomains are unaffected.
             if (UrlExtractor.isNoise(candidate, true)) continue;
 
+            // Strip port to get the bare hostname for comparison.
             String hostname = candidate.toLowerCase(Locale.ROOT).split("[:/]")[0];
             boolean differs = proxyDomain == null
                     ? !isExceptionServer(candidate)

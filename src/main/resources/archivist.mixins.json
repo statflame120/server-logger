@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"minVersion": "0.8",
+	"package": "com.archivist.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"ClientPacketListenerMixin",
+		"ClientPacketListenerScreenMixin",
+		"ClientCommonListenerMixin",
+		"accessor.ClientCommonListenerAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
