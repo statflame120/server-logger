@@ -1,47 +1,81 @@
 package com.archivist;
 
+import com.archivist.fingerprint.FingerprintMatch;
+import com.archivist.util.ArchivistExecutor;
 import com.google.gson.*;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.time.Instant;
-import java.util.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 public class JsonLogger {
 
     public static void write(ServerDataCollector data) {
+        // Snapshot mutable state on the calling thread, then do I/O in background
+        final String ip = data.ip;
+        final int port = data.port;
+        final String domain = data.domain;
+        final String brand = data.brand;
+        final String version = data.version;
+        final int playerCount = data.playerCount;
+        final String dimension = data.dimension;
+        final String resourcePack = data.resourcePack;
+        final List<String> plugins = new ArrayList<>(data.getPlugins());
+        final List<String> detectedAddresses = new ArrayList<>(data.getDetectedAddresses());
+        final List<String> detectedGameAddresses = new ArrayList<>(data.getDetectedGameAddresses());
+        final List<FingerprintMatch> guiMatches = new ArrayList<>(
+                com.archivist.fingerprint.GuiFingerprintEngine.getInstance().getMatches());
+        final String logFolder = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.config.logFolder : "archivist/logs";
+
+        ArchivistExecutor.run(() -> writeImpl(ip, port, domain, brand, version, playerCount,
+                dimension, resourcePack, plugins, detectedAddresses, detectedGameAddresses,
+                guiMatches, logFolder));
+    }
+
+    private static void writeImpl(String ip, int port, String domain, String brand,
+                                   String version, int playerCount, String dimension,
+                                   String resourcePack, List<String> plugins,
+                                   List<String> detectedAddresses,
+                                   List<String> detectedGameAddresses,
+                                   List<FingerprintMatch> guiMatches,
+                                   String logFolder) {
         try {
             Path logDir = FabricLoader.getInstance()
                     .getGameDir()
-                    .resolve(ArchivistMod.INSTANCE.config.logFolder);
+                    .resolve(logFolder);
             Files.createDirectories(logDir);
 
-            String baseName = (!data.domain.equals("unknown") && !data.domain.equals(data.ip))
-                    ? data.domain.replaceAll("[^a-zA-Z0-9._-]", "_")
-                    : data.ip.replaceAll("[^a-zA-Z0-9._-]", "_") + "_" + data.port;
+            String baseName = (!domain.equals("unknown") && !domain.equals(ip))
+                    ? domain.replaceAll("[^a-zA-Z0-9._-]", "_")
+                    : ip.replaceAll("[^a-zA-Z0-9._-]", "_") + "_" + port;
             Path outFile = logDir.resolve(baseName + ".json");
 
-            Set<String> newPluginNames = new LinkedHashSet<>();
-            for (String name : data.getPlugins()) newPluginNames.add(name);
-
-            JsonArray addrArr = new JsonArray();
-            data.getDetectedAddresses().forEach(addrArr::add);
-
-            JsonArray gameAddrArr = new JsonArray();
-            data.getDetectedGameAddresses().forEach(gameAddrArr::add);
-
-            String now = Instant.now().toString();
-
-            JsonObject currentWorld = new JsonObject();
-            currentWorld.addProperty("timestamp", now);
-            currentWorld.addProperty("dimension", data.dimension);
-            if (data.resourcePack != null) {
-                currentWorld.addProperty("resource_pack", data.resourcePack);
+            JsonArray pluginsArr = new JsonArray();
+            for (String name : plugins) {
+                JsonObject p = new JsonObject();
+                p.addProperty("name", name);
+                pluginsArr.add(p);
             }
 
-            Set<String> mergedPluginNames = new LinkedHashSet<>(newPluginNames);
-            JsonArray worldsArr = new JsonArray();
+            JsonArray addrArr = new JsonArray();
+            detectedAddresses.forEach(addrArr::add);
+
+            JsonArray gameAddrArr = new JsonArray();
+            detectedGameAddresses.forEach(gameAddrArr::add);
+
+            JsonObject currentWorld = new JsonObject();
+            currentWorld.addProperty("timestamp", LocalDate.now().toString());
+            currentWorld.addProperty("dimension", dimension);
+            if (resourcePack != null) {
+                currentWorld.addProperty("resource_pack", resourcePack);
+            }
+
+            JsonArray finalPlugins = pluginsArr;
+            JsonArray worldsArr    = new JsonArray();
 
             if (Files.exists(outFile)) {
                 try {
@@ -49,15 +83,8 @@ public class JsonLogger {
 
                     JsonArray existingPlugins = existing.has("plugins")
                             ? existing.getAsJsonArray("plugins") : null;
-                    if (existingPlugins != null) {
-                        for (JsonElement el : existingPlugins) {
-                            if (el.isJsonObject()) {
-                                JsonObject p = el.getAsJsonObject();
-                                if (p.has("name")) mergedPluginNames.add(p.get("name").getAsString());
-                            } else if (el.isJsonPrimitive()) {
-                                mergedPluginNames.add(el.getAsString());
-                            }
-                        }
+                    if (existingPlugins != null && existingPlugins.size() > pluginsArr.size()) {
+                        finalPlugins = existingPlugins;
                     }
 
                     if (existing.has("worlds")) {
@@ -67,7 +94,7 @@ public class JsonLogger {
                         JsonObject migrated = new JsonObject();
                         migrated.addProperty("timestamp", existing.has("timestamp")
                                 ? existing.get("timestamp").getAsString()
-                                : now);
+                                : LocalDate.now().toString());
                         if (oldWorld.has("dimension"))
                             migrated.addProperty("dimension", oldWorld.get("dimension").getAsString());
                         if (oldWorld.has("resource_pack"))
@@ -77,11 +104,10 @@ public class JsonLogger {
 
                     boolean worldExists = false;
                     for (JsonElement el : worldsArr) {
-                        if (!el.isJsonObject()) continue;
                         JsonObject w = el.getAsJsonObject();
                         String dim  = w.has("dimension")     ? w.get("dimension").getAsString()     : "";
                         String rp   = w.has("resource_pack") ? w.get("resource_pack").getAsString() : null;
-                        if (dim.equals(data.dimension) && Objects.equals(rp, data.resourcePack)) {
+                        if (dim.equals(dimension) && Objects.equals(rp, resourcePack)) {
                             worldExists = true;
                             break;
                         }
@@ -89,6 +115,10 @@ public class JsonLogger {
 
                     if (!worldExists) {
                         worldsArr.add(currentWorld);
+                    } else if (finalPlugins == pluginsArr && existingPlugins != null
+                            && existingPlugins.size() >= pluginsArr.size()) {
+                        ArchivistMod.sendMessage("No new data for " + outFile.getFileName() + ", skipping write");
+                        return;
                     }
 
                 } catch (Exception e) {
@@ -98,31 +128,35 @@ public class JsonLogger {
                 worldsArr.add(currentWorld);
             }
 
-            JsonArray finalPlugins = new JsonArray();
-            List<String> sortedPlugins = new ArrayList<>(mergedPluginNames);
-            sortedPlugins.sort(String.CASE_INSENSITIVE_ORDER);
-            for (String name : sortedPlugins) {
-                JsonObject p = new JsonObject();
-                p.addProperty("name", name);
-                finalPlugins.add(p);
-            }
-
             JsonObject root = new JsonObject();
-            root.addProperty("timestamp", now);
+            root.addProperty("timestamp", LocalDate.now().toString());
 
             JsonObject serverInfo = new JsonObject();
-            serverInfo.addProperty("ip",           data.ip);
-            serverInfo.addProperty("port",         data.port);
-            serverInfo.addProperty("domain",       data.domain);
-            serverInfo.addProperty("brand",        data.brand);
-            serverInfo.addProperty("version",      data.version);
-            serverInfo.addProperty("player_count", data.playerCount);
-            if (data.motd != null && !data.motd.isBlank()) {
-                serverInfo.addProperty("motd", data.motd);
-            }
+            serverInfo.addProperty("ip",           ip);
+            serverInfo.addProperty("port",         port);
+            serverInfo.addProperty("domain",       domain);
+            serverInfo.addProperty("brand",        brand);
+            serverInfo.addProperty("version",      version);
+            serverInfo.addProperty("player_count", playerCount);
             root.add("server_info", serverInfo);
 
             root.add("plugins",                  finalPlugins);
+
+            // GUI-fingerprinted plugins
+            JsonArray guiPluginsArr = new JsonArray();
+            for (FingerprintMatch m : guiMatches) {
+                JsonObject gp = new JsonObject();
+                gp.addProperty("pluginId", m.pluginId());
+                gp.addProperty("pluginName", m.pluginName());
+                gp.addProperty("confidence", m.confidence());
+                gp.addProperty("inventoryTitle", m.inventoryTitle());
+                gp.addProperty("matchedPatterns", m.matchedPatterns());
+                guiPluginsArr.add(gp);
+            }
+            if (guiPluginsArr.size() > 0) {
+                root.add("gui_plugins", guiPluginsArr);
+            }
+
             root.add("detected_addresses",       addrArr);
             root.add("detected_game_addresses",  gameAddrArr);
             root.add("worlds",                   worldsArr);

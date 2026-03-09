@@ -6,8 +6,12 @@ import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.chat.Component;
 
+import com.archivist.data.EventBus;
+import com.archivist.data.LogEvent;
+
 import java.net.InetSocketAddress;
 import java.util.*;
+import java.util.Locale;
 
 public class ServerDataCollector {
 
@@ -21,7 +25,6 @@ public class ServerDataCollector {
     public String resourcePack = null;
 
     public  int     playerCount      = 0;
-    public  String  motd             = null;
     private List<String> plugins         = new ArrayList<>();
     private boolean      pluginsReceived = false;
 
@@ -32,7 +35,6 @@ public class ServerDataCollector {
     private boolean onExceptionServer = false;
     private String  exceptionProxyAddress = null;
     private int     pollTicks          = 0;
-    private static final int POLL_INTERVAL = 20;
     private static final int MAX_POLL_TIME = 200;
 
     public void onServerJoin(ClientPacketListener handler, Minecraft client) {
@@ -48,13 +50,10 @@ public class ServerDataCollector {
             ArchivistMod.LOGGER.warn("[Archivist] Could not read MC version: {}", e.getMessage());
         }
 
-        // ── Player count + MOTD from server-list ping data ─────────────────────
+        // ── Player count from server-list ping data ───────────────────────────────
         try {
             var sd = client.getCurrentServer();
-            if (sd != null) {
-                if (sd.players != null) playerCount = sd.players.online();
-                if (sd.motd != null) motd = sd.motd.getString();
-            }
+            if (sd != null && sd.players != null) playerCount = sd.players.online();
         } catch (Exception ignored) {}
 
         // ── Primary: use the address the player actually typed (ignores proxies) ──
@@ -114,6 +113,11 @@ public class ServerDataCollector {
         plugins.sort(String.CASE_INSENSITIVE_ORDER);
         pluginsReceived = true;
 
+        EventBus.post(LogEvent.Type.PLUGIN, "Detected " + plugins.size() + " plugin" + (plugins.size() != 1 ? "s" : ""));
+        for (String p : plugins) {
+            EventBus.post(LogEvent.Type.PLUGIN, "Plugin: " + p);
+        }
+
         if (!plugins.isEmpty()) {
             String pluginStr = String.join(", ", plugins);
             int count = plugins.size();
@@ -147,11 +151,17 @@ public class ServerDataCollector {
     }
 
     public void onServerBrand(String b) {
-        if (b != null && !b.isBlank()) brand = b;
+        if (b != null && !b.isBlank()) {
+            brand = b;
+            EventBus.post(LogEvent.Type.BRAND, "Server brand: " + b);
+        }
     }
 
     public void onDimension(String dimensionId) {
-        if (dimensionId != null) dimension = dimensionId;
+        if (dimensionId != null) {
+            dimension = dimensionId;
+            EventBus.post(LogEvent.Type.WORLD, "Dimension: " + dimensionId);
+        }
         // On a exception server every world-change / server-switch resets the
         // resolution state and immediately re-scans the new server's UI data.
         if (onExceptionServer && ArchivistMod.INSTANCE != null) {
@@ -160,7 +170,16 @@ public class ServerDataCollector {
             // Schedule on the main thread so scoreboard / tab-list are readable.
             Minecraft.getInstance().execute(() -> {
                 Minecraft client = Minecraft.getInstance();
-                if (client.getConnection() != null) doScan(client);
+                if (client.getConnection() != null) {
+                    if ("unknown".equals(brand)) {
+                        try {
+                            String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor)
+                                    client.getConnection()).getServerBrand();
+                            if (b != null && !b.isBlank()) brand = b;
+                        } catch (Exception ignored) {}
+                    }
+                    doScan(client);
+                }
                 if (applyResolvedDomain()) JsonLogger.write(this);
             });
         }
@@ -172,34 +191,30 @@ public class ServerDataCollector {
     }
 
     public void tick(Minecraft client) {
-        if (!joined) return;
-        if (client.getConnection() == null) return;
+        if (!joined || !onExceptionServer) return;
+        if (client.getConnection() == null || client.level == null) return;
 
         pollTicks++;
-        if (pollTicks % POLL_INTERVAL != 0) return;
-        if (pollTicks > MAX_POLL_TIME) {
+
+        // Scan tab-list and scoreboard every second for the real sub-server domain
+        if (pollTicks % 20 == 0) {
+            doScan(client);
+            if (applyResolvedDomain()) {
+                onExceptionServer = false;
+                JsonLogger.write(this);
+                return;
+            }
+        }
+
+        if (pollTicks >= MAX_POLL_TIME) {
             // Timed out without finding a real sub-server domain.
-            if (onExceptionServer && domain.equals(exceptionProxyAddress)) {
+            if (domain.equals(exceptionProxyAddress)) {
                 if (exceptionProxyAddress != null) detectedGameAddresses.add(exceptionProxyAddress);
                 domain = "unknown";
                 onExceptionServer = false;
                 JsonLogger.write(this);
             }
-            return;
         }
-
-        // brand
-        if ("unknown".equals(brand)) {
-            try {
-                String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor)
-                        client.getConnection()).getServerBrand();
-                if (b != null && !b.isBlank()) brand = b;
-            } catch (Exception ignored) {}
-        }
-
-        doScan(client);
-
-        if (applyResolvedDomain()) JsonLogger.write(this);
     }
 
     //TAB and scoreboard for exceptions
@@ -226,7 +241,7 @@ public class ServerDataCollector {
 
     public void reset() {
         ip = "unknown"; port = 25565; domain = "unknown";
-        brand = "unknown"; version = "unknown"; motd = null;
+        brand = "unknown"; version = "unknown";
         dimension = "minecraft:overworld";
         resourcePack = null;
         plugins.clear();

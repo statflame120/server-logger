@@ -14,10 +14,11 @@ public class PluginScanner {
     private final List<String> commandTreePlugins = new ArrayList<>();
     private final List<String> tabCompletePlugins = new ArrayList<>();
 
-    private boolean active       = false;
-    private int     ticks        = 0;
-    private int     suggestionId = -1;
-    private String  versionAlias = null;
+    private boolean active                = false;
+    private boolean commandTreeProcessed = false;
+    private int     ticks                = 0;
+    private int     suggestionId         = -1;
+    private String  versionAlias         = null;
 
     private static final Set<String> VERSION_ALIASES = Set.of(
             "version", "ver", "about",
@@ -29,15 +30,19 @@ public class PluginScanner {
     }
 
     public void reset() {
-        active       = false;
-        ticks        = 0;
-        suggestionId = -1;
-        versionAlias = null;
+        active                = false;
+        commandTreeProcessed  = false;
+        ticks                 = 0;
+        suggestionId          = -1;
+        versionAlias          = null;
         commandTreePlugins.clear();
         tabCompletePlugins.clear();
     }
 
     public void onCommandTree(CommandDispatcher<SharedSuggestionProvider> dispatcher) {
+        if (commandTreeProcessed) return;
+        commandTreeProcessed = true;
+
         commandTreePlugins.clear();
         versionAlias = null;
 
@@ -98,8 +103,8 @@ public class PluginScanner {
     }
 
     public void tick(Minecraft client) {
-        if (!ArchivistMod.INSTANCE.config.enabled) return;
-        if (client.getConnection() == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
+        if (client.getConnection() == null || client.level == null) return;
 
         if (active) {
             ticks++;
@@ -115,7 +120,7 @@ public class PluginScanner {
         Minecraft mc = Minecraft.getInstance();
         if (mc.getConnection() == null) return;
 
-        suggestionId = new Random().nextInt(Integer.MAX_VALUE);
+        suggestionId = new Random().nextInt(200);
         mc.getConnection().send(
                 new ServerboundCommandSuggestionPacket(suggestionId, "/" + alias + " "));
         ArchivistMod.LOGGER.info(

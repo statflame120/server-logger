@@ -1,0 +1,1531 @@
+package com.archivist.gui.screen;
+
+import com.archivist.ArchivistMod;
+import com.archivist.ServerDataCollector;
+import com.archivist.command.CommandRegistry;
+import com.archivist.command.commands.ThemeCommand;
+import com.archivist.config.ArchivistConfig;
+import com.archivist.config.GuiConfig;
+import com.archivist.data.EventBus;
+import com.archivist.data.LogEvent;
+import com.archivist.data.LogExporter;
+import com.archivist.ExceptionResolver;
+import com.archivist.database.ApiConfig;
+import com.archivist.database.ApiSyncManager;
+import com.archivist.database.DatabaseManager;
+import com.archivist.gui.render.ColorScheme;
+import com.archivist.gui.render.GradientConfig;
+import com.archivist.gui.render.ThemeManager;
+import com.archivist.gui.ServerLogData;
+import com.archivist.gui.ServerLogReader;
+import com.archivist.gui.widgets.*;
+import com.archivist.gui.widgets.Button;
+import com.archivist.gui.widgets.CheckBox;
+import com.archivist.gui.widgets.Label;
+import com.archivist.gui.widgets.TextField;
+import com.archivist.fingerprint.*;
+import com.archivist.scraper.GuiScraper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.*;
+import java.util.function.Consumer;
+
+/**
+ * Main Archivist GUI screen. Extends Minecraft's Screen as a bridge —
+ * all rendering and input is forwarded to the custom widget system.
+ * No vanilla widgets (addDrawableChild) are used.
+ *
+ * Creates and manages: Server Info, Plugin List, World Info,
+ * Connection Log, Console, Settings windows, and the Taskbar.
+ */
+public class ArchivistScreen extends Screen {
+
+    private final List<DraggableWindow> windows = new ArrayList<>();
+    private final List<DraggableWindow> taskbarOrder = new ArrayList<>();
+    private final Taskbar taskbar = new Taskbar();
+    private GuiConfig guiConfig;
+
+    // Global search overlay
+    private final GlobalSearchOverlay globalSearch = new GlobalSearchOverlay();
+
+    // Keyboard shortcut state
+    private boolean shortcutConsumedThisFrame = false;
+
+    // Settings tab persistence
+    private int settingsActiveTab = 0;
+
+    // Windows
+    private DraggableWindow serverInfoWindow;
+    private DraggableWindow pluginListWindow;
+    private DraggableWindow worldInfoWindow;
+    private DraggableWindow connectionLogWindow;
+    private DraggableWindow consoleWindow;
+    private DraggableWindow settingsWindow;
+    private DraggableWindow inspectorWindow;
+    private DraggableWindow serverListWindow;
+
+    // Console state
+    private ScrollableList consoleOutput;
+    private TextField consoleInput;
+    private int lastEventCount = 0;
+
+    // Plugin list state
+    private ScrollableList pluginList;
+    private TextField pluginSearch;
+
+    // Connection log state
+    private ScrollableList connectionLogList;
+
+    // Inspector state
+    private ScrollableList inspectorList;
+    private GuiCapture lastBuiltCapture;
+
+    private final Screen parent;
+
+    public ArchivistScreen() {
+        this(null);
+    }
+
+    public ArchivistScreen(Screen parent) {
+        super(Component.literal("Archivist"));
+        this.parent = parent;
+    }
+
+    //? if <1.21.9 {
+    /*@Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+    *///?}
+
+    @Override
+    protected void init() {
+        windows.clear();
+
+        // Load GUI config for window positions
+        guiConfig = new GuiConfig();
+        guiConfig.load();
+
+        // Apply saved theme
+        applyTheme(guiConfig.activeTheme);
+
+        // ── Create Windows ──────────────────────────────────────────────────
+        serverInfoWindow = createWindow("server_info", "Server Info", 10, 10, 200, 240);
+        pluginListWindow = createWindow("plugin_list", "Plugins", 220, 10, 180, 240);
+        worldInfoWindow = createWindow("world_info", "World Info", 410, 10, 190, 200);
+        connectionLogWindow = createWindow("connection_log", "Connection Log", 10, 260, 280, 200);
+        consoleWindow = createWindow("console", "Console", 300, 260, 300, 200);
+        settingsWindow = createWindow("settings", "Settings", 610, 10, 220, 300);
+        if (guiConfig.getWindowState("settings") == null) settingsWindow.setVisible(false);
+        inspectorWindow = createWindow("inspector", "GUI Inspector", 610, 320, 250, 250);
+        if (guiConfig.getWindowState("inspector") == null) inspectorWindow.setVisible(false);
+        serverListWindow = createWindow("server_list", "Server Logs", 10, 10, 400, 350);
+        if (guiConfig.getWindowState("server_list") == null) serverListWindow.setVisible(false);
+
+        buildServerInfoWindow();
+        buildPluginListWindow();
+        buildWorldInfoWindow();
+        buildConnectionLogWindow();
+        buildConsoleWindow();
+        buildSettingsWindow();
+        buildInspectorWindow();
+        buildServerListWindow();
+
+        // Initial reflow so anchored children get correct positions
+        pluginListWindow.reflowChildren();
+        connectionLogWindow.reflowChildren();
+        consoleWindow.reflowChildren();
+        settingsWindow.reflowChildren();
+        inspectorWindow.reflowChildren();
+        serverListWindow.reflowChildren();
+
+        windows.add(serverInfoWindow);
+        windows.add(pluginListWindow);
+        windows.add(worldInfoWindow);
+        windows.add(connectionLogWindow);
+        windows.add(consoleWindow);
+        windows.add(settingsWindow);
+        windows.add(inspectorWindow);
+        windows.add(serverListWindow);
+
+        // Stable order for taskbar (never reordered by bringToFront)
+        taskbarOrder.clear();
+        taskbarOrder.addAll(windows);
+
+        // Give each window the full list for snapping
+        for (DraggableWindow w : windows) {
+            w.setAllWindows(windows);
+        }
+
+        // Taskbar
+        taskbar.setup(taskbarOrder, width);
+        taskbar.updatePosition(width, height);
+
+        // Setup global search
+        globalSearch.setVisible(false);
+        globalSearch.setSearchProvider(this::performGlobalSearch);
+        globalSearch.setOnResultSelected((windowId, matchText) -> {
+            for (DraggableWindow w : windows) {
+                if (w.getId().equals(windowId)) {
+                    w.setVisible(true);
+                    w.setMinimized(false);
+                    bringToFront(w);
+                    break;
+                }
+            }
+        });
+    }
+
+    private DraggableWindow createWindow(String id, String title, int defX, int defY, int defW, int defH) {
+        GuiConfig.WindowState saved = guiConfig.getWindowState(id);
+        if (saved != null) {
+            DraggableWindow w = new DraggableWindow(id, title, saved.x, saved.y, saved.width, saved.height);
+            w.setVisible(saved.visible);
+            w.setMinimized(saved.minimized);
+            return w;
+        }
+        return new DraggableWindow(id, title, defX, defY, defW, defH);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Window Builders
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void buildServerInfoWindow() {
+        serverInfoWindow.clearChildren();
+        ServerDataCollector dc = getDataCollector();
+
+        addKV(serverInfoWindow, "IP", dc != null ? dc.ip : "N/A");
+        addKV(serverInfoWindow, "Port", dc != null ? String.valueOf(dc.port) : "N/A");
+        addKV(serverInfoWindow, "Domain", dc != null ? dc.domain : "N/A");
+        addKV(serverInfoWindow, "Version", dc != null ? dc.version : "N/A");
+        addKV(serverInfoWindow, "Brand", dc != null ? dc.brand : "N/A");
+        addKV(serverInfoWindow, "Players", dc != null ? String.valueOf(dc.playerCount) : "N/A");
+        addKV(serverInfoWindow, "Dimension", dc != null ? dc.dimension : "N/A");
+
+        if (dc != null && dc.resourcePack != null) {
+            addKV(serverInfoWindow, "Resource Pack", dc.resourcePack);
+        }
+
+        // MOTD from server data if available
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getCurrentServer() != null && mc.getCurrentServer().motd != null) {
+            serverInfoWindow.addChild(new Label(0, 0, 180, ""));
+            serverInfoWindow.addChild(new Label(0, 0, 180, "MOTD:", ColorScheme.get().accent()));
+            serverInfoWindow.addChild(new Label(0, 0, 180, mc.getCurrentServer().motd.getString(), ColorScheme.get().textSecondary()));
+        }
+
+        serverInfoWindow.addChild(new Label(0, 0, 180, ""));
+        serverInfoWindow.addChild(new Button(0, 0, 80, "Export", () -> {
+            String path = LogExporter.exportJson();
+            if (path != null) EventBus.post(LogEvent.Type.SYSTEM, "Exported: " + path);
+        }));
+    }
+
+    private void buildPluginListWindow() {
+        pluginListWindow.clearChildren();
+        ServerDataCollector dc = getDataCollector();
+
+        List<String> plugins = dc != null ? dc.getPlugins() : Collections.emptyList();
+        pluginListWindow.setTitle("Plugins (" + plugins.size() + ")");
+
+        pluginList = new ScrollableList(0, 0, 160, 160);
+        pluginList.setAnchor(Widget.Anchor.FILL_ABOVE);
+        pluginList.setMargins(0, 0, 34, 0); // leave 34px at bottom for search + button
+        for (String p : plugins) {
+            pluginList.addItem(p, ColorScheme.get().eventPlugin());
+        }
+
+        // Add GUI-scraped plugins if available
+        if (ArchivistMod.INSTANCE != null) {
+            GuiScraper scraper = ArchivistMod.INSTANCE.guiScraper;
+            if (scraper != null && !scraper.getIdentifiedPlugins().isEmpty()) {
+                pluginList.addItem("--- GUI Scraped ---", ColorScheme.get().textSecondary());
+                for (String p : scraper.getIdentifiedPlugins()) {
+                    pluginList.addItem(p, ColorScheme.get().accent());
+                }
+            }
+        }
+
+        // Add GUI-fingerprinted plugins
+        Set<String> fpPlugins = GuiFingerprintEngine.getInstance().getDetectedPluginNames();
+        if (!fpPlugins.isEmpty()) {
+            pluginList.addItem("--- GUI Fingerprint ---", ColorScheme.get().textSecondary());
+            for (String p : fpPlugins) {
+                pluginList.addItem(p, ColorScheme.get().eventWorld());
+            }
+        }
+
+        pluginListWindow.addChild(pluginList);
+
+        pluginSearch = new TextField(0, 0, 160, "Filter plugins...");
+        pluginSearch.setAnchor(Widget.Anchor.BOTTOM);
+        pluginSearch.setFixedHeight(14);
+        pluginSearch.setMargins(0, 0, 16, 0); // 16px from bottom for button below
+        pluginSearch.setOnChange(query -> filterPlugins(query, dc));
+        pluginListWindow.addChild(pluginSearch);
+
+        Button copyAllBtn = new Button(0, 0, 80, "Copy All", () -> {
+            List<String> all = dc != null ? new ArrayList<>(dc.getPlugins()) : new ArrayList<>();
+            if (ArchivistMod.INSTANCE != null && ArchivistMod.INSTANCE.guiScraper != null) {
+                all.addAll(ArchivistMod.INSTANCE.guiScraper.getIdentifiedPlugins());
+            }
+            Set<String> unique = new LinkedHashSet<>(all);
+            Minecraft.getInstance().keyboardHandler.setClipboard(String.join(", ", unique));
+            EventBus.post(LogEvent.Type.SYSTEM, "Plugins copied to clipboard");
+        });
+        copyAllBtn.setAnchor(Widget.Anchor.BOTTOM);
+        copyAllBtn.setFixedHeight(14);
+        pluginListWindow.addChild(copyAllBtn);
+    }
+
+    private void filterPlugins(String query, ServerDataCollector dc) {
+        if (pluginList == null) return;
+        pluginList.clearItems();
+        String q = query.toLowerCase(Locale.ROOT).trim();
+        List<String> plugins = dc != null ? dc.getPlugins() : Collections.emptyList();
+        for (String p : plugins) {
+            if (q.isEmpty() || p.toLowerCase(Locale.ROOT).contains(q)) {
+                pluginList.addItem(p, ColorScheme.get().eventPlugin());
+            }
+        }
+    }
+
+    private void buildWorldInfoWindow() {
+        worldInfoWindow.clearChildren();
+        ServerDataCollector dc = getDataCollector();
+        Minecraft mc = Minecraft.getInstance();
+
+        addKV(worldInfoWindow, "Dimension", dc != null ? dc.dimension : "N/A");
+
+        if (mc.level != null) {
+            addKV(worldInfoWindow, "Difficulty", mc.level.getDifficulty().name());
+            addKV(worldInfoWindow, "Day Time", String.valueOf(mc.level.getDayTime() % 24000));
+
+            //? if >=1.21.6
+            addKV(worldInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
+            //? if <1.21.6
+            //addKV(worldInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
+
+            try {
+                //? if <1.21.10 {
+                /*var spawnPos = mc.level.getSharedSpawnPos();
+                addKV(worldInfoWindow, "Spawn", spawnPos.getX() + ", " + spawnPos.getY() + ", " + spawnPos.getZ());
+                *///?}
+            } catch (Exception ignored) {}
+
+            // World border
+            var border = mc.level.getWorldBorder();
+            addKV(worldInfoWindow, "Border Size", String.format("%.0f", border.getSize()));
+        }
+
+        if (mc.gameMode != null) {
+            addKV(worldInfoWindow, "Gamemode", mc.gameMode.getPlayerMode().name());
+        }
+
+        if (dc != null && dc.resourcePack != null) {
+            addKV(worldInfoWindow, "Resource Pack", dc.resourcePack);
+        }
+
+        worldInfoWindow.addChild(new Label(0, 0, 170, ""));
+        worldInfoWindow.addChild(new Button(0, 0, 80, "Export", () -> {
+            LogExporter.exportWorldInfo();
+        }));
+    }
+
+    private void buildConnectionLogWindow() {
+        connectionLogWindow.clearChildren();
+
+        // Session timeline bar at the top
+        TimelineBar timeline = new TimelineBar(0, 0, 260, 14);
+        timeline.setAnchor(Widget.Anchor.TOP);
+        timeline.setFixedHeight(14);
+        timeline.setMargins(4, 0, 0, 0);
+        connectionLogWindow.addChild(timeline);
+
+        connectionLogList = new ScrollableList(0, 0, 260, 170);
+        connectionLogList.setAnchor(Widget.Anchor.FILL);
+        connectionLogList.setMargins(20, 0, 0, 0);
+        connectionLogList.setAutoScroll(true);
+
+        // Populate with existing events
+        for (LogEvent event : EventBus.getEvents()) {
+            connectionLogList.addItem(event.formatted(), ColorScheme.get().eventColor(event.getType()));
+        }
+        lastEventCount = EventBus.size();
+
+        connectionLogWindow.addChild(connectionLogList);
+    }
+
+    private void buildConsoleWindow() {
+        consoleWindow.clearChildren();
+
+        consoleOutput = new ScrollableList(0, 0, 280, 140);
+        consoleOutput.setAnchor(Widget.Anchor.FILL_ABOVE);
+        consoleOutput.setMargins(0, 0, 18, 0); // leave 18px for input row
+        consoleOutput.setAutoScroll(true);
+
+        // Welcome message
+        consoleOutput.addItem("[Archivist Console]", ColorScheme.get().eventSystem());
+        consoleOutput.addItem("Type !help for commands.", ColorScheme.get().textSecondary());
+        consoleOutput.addItem("", 0);
+
+        consoleWindow.addChild(consoleOutput);
+
+        // Input field — bottom, leaves room on right for send button
+        consoleInput = new TextField(0, 0, 240, "Type !command...");
+        consoleInput.setAnchor(Widget.Anchor.BOTTOM);
+        consoleInput.setFixedHeight(14);
+        consoleInput.setMargins(0, 55, 0, 0); // 55px right margin for send button
+        consoleWindow.addChild(consoleInput);
+
+        // Wire autocomplete
+        consoleInput.setAutoCompleteProvider(input -> CommandRegistry.getCompletions(input));
+        consoleInput.setOnShowSuggestions(suggestions -> {
+            for (String s : suggestions) {
+                consoleOutput.addItem("  " + s, ColorScheme.get().textSecondary());
+            }
+        });
+
+        Button sendBtn = new Button(0, 0, 50, "Send", this::submitConsoleCommand);
+        sendBtn.setAnchor(Widget.Anchor.BOTTOM_RIGHT);
+        sendBtn.setFixedWidth(50);
+        sendBtn.setFixedHeight(14);
+        consoleWindow.addChild(sendBtn);
+    }
+
+    private void submitConsoleCommand() {
+        if (consoleInput == null) return;
+        String input = consoleInput.getText().trim();
+        if (input.isEmpty()) return;
+
+        consoleOutput.addItem("> " + input, ColorScheme.get().textPrimary());
+
+        if (input.startsWith("!")) {
+            Consumer<String> output = line -> consoleOutput.addItem(line, ColorScheme.get().eventSystem());
+            CommandRegistry.dispatch(input, output);
+        } else {
+            consoleOutput.addItem("Commands must start with ! (e.g., !help)", ColorScheme.get().eventError());
+        }
+
+        consoleInput.clear();
+    }
+
+    private void buildSettingsWindow() {
+        // Preserve active tab across rebuilds
+        for (Widget child : settingsWindow.getChildren()) {
+            if (child instanceof TabContainer tc) {
+                settingsActiveTab = tc.getActiveTab();
+                break;
+            }
+        }
+        settingsWindow.clearChildren();
+
+        TabContainer tabs = new TabContainer(0, 0, 210, 260);
+        tabs.setAnchor(Widget.Anchor.FILL);
+
+        // ── General Tab ─────────────────────────────────────────────────────
+        Panel generalTab = tabs.addTab("General");
+        generalTab.addChild(new Label(0, 0, 200, "Keybind: Z (hardcoded)", ColorScheme.get().textSecondary()));
+
+        ArchivistConfig cfg = getExtConfig();
+        generalTab.addChild(new CheckBox(0, 0, 200, "Auto-scrape on join",
+                cfg != null && cfg.autoScrapeOnJoin,
+                v -> { if (cfg != null) { cfg.autoScrapeOnJoin = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Silent scraper (hide chat)",
+                cfg != null && cfg.silentScraper,
+                v -> {
+                    if (cfg != null) { cfg.silentScraper = v; cfg.save(); }
+                    if (ArchivistMod.INSTANCE != null) {
+                        ArchivistMod.INSTANCE.guiScraper.setSilentMode(v);
+                    }
+                }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Log plugins",
+                cfg == null || cfg.logPlugins,
+                v -> { if (cfg != null) { cfg.logPlugins = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Log world info",
+                cfg == null || cfg.logWorldInfo,
+                v -> { if (cfg != null) { cfg.logWorldInfo = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Log connection metadata",
+                cfg == null || cfg.logConnectionMeta,
+                v -> { if (cfg != null) { cfg.logConnectionMeta = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Show HUD summary",
+                cfg != null && cfg.showHudSummary,
+                v -> { if (cfg != null) { cfg.showHudSummary = v; cfg.save(); } }));
+
+        GuiFingerprintEngine fpEngine = GuiFingerprintEngine.getInstance();
+        generalTab.addChild(new CheckBox(0, 0, 200, "GUI Inspector mode",
+                fpEngine.isInspectorEnabled(),
+                v -> fpEngine.setInspectorEnabled(v)));
+        generalTab.addChild(new Label(0, 0, 200, ""));
+        generalTab.addChild(new Button(0, 0, 120, "Reset Window Positions", () -> {
+            String savedTheme = guiConfig.activeTheme;
+            guiConfig = new GuiConfig();
+            guiConfig.activeTheme = savedTheme;
+            guiConfig.save();
+            init();
+        }));
+
+        // ── Theme Tab (live preview + URL import) ─────────────────────────
+        Panel themeTab = tabs.addTab("Theme");
+        themeTab.addChild(new Label(0, 0, 200, "Select a theme:", ColorScheme.get().textSecondary()));
+
+        // Theme dropdown with live preview
+        List<String> themeNames = new ArrayList<>(ThemeCommand.getThemes().keySet());
+        String currentThemeName = ColorScheme.get().name().toLowerCase(Locale.ROOT);
+        Dropdown themeDropdown = new Dropdown(0, 0, 200, "",
+                themeNames, currentThemeName,
+                v -> {
+                    // Live preview: apply theme immediately
+                    ColorScheme theme = ThemeCommand.getThemes().get(v);
+                    if (theme != null) {
+                        ColorScheme.setActive(theme);
+                        guiConfig.activeTheme = theme.name();
+                        guiConfig.save();
+                        init(); // Rebuild to apply new colors
+                    }
+                });
+        themeTab.addChild(themeDropdown);
+
+        themeTab.addChild(new Label(0, 0, 200, "Current: " + ColorScheme.get().name(), ColorScheme.get().accent()));
+
+        // ── Connections Tab (Unified DB + REST API) ────────────────────────
+        Panel connTab = tabs.addTab("Connections");
+        String adapterType = cfg != null ? cfg.databaseAdapterType : "None";
+        ApiConfig apiCfg = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.apiConfig : null;
+        ApiSyncManager apiSync = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.apiSyncManager : null;
+
+        connTab.addChild(new Label(0, 0, 200, "Connection type:", ColorScheme.get().textSecondary()));
+        Dropdown adapterDropdown = new Dropdown(0, 0, 200, "",
+                List.of("None", "Archivist", "REST API", "Discord Bot", "Custom"),
+                adapterType,
+                v -> {
+                    if (cfg != null) { cfg.databaseAdapterType = v; cfg.save(); }
+                    if (apiCfg != null) { apiCfg.enabled = "REST API".equals(v) || "Archivist".equals(v); apiCfg.save(); }
+                    buildSettingsWindow(); // rebuild to show type-specific fields
+                });
+        connTab.addChild(adapterDropdown);
+
+        if ("Archivist".equals(adapterType)) {
+            // ── Archivist fields (simplified REST API) ──
+            if (apiCfg != null) {
+                connTab.addChild(new Label(0, 0, 200, "Base URL:", ColorScheme.get().textSecondary()));
+                TextField baseUrlField = new TextField(0, 0, 200, "https://example.com/api");
+                baseUrlField.setText(apiCfg.baseUrl);
+                baseUrlField.setOnChange(v -> {
+                    apiCfg.baseUrl = v.replaceAll("/+$", "");
+                    apiCfg.save();
+                    if (apiSync != null) apiSync.refreshClient();
+                });
+                connTab.addChild(baseUrlField);
+
+                connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
+
+                ScrollableList headerList = new ScrollableList(0, 0, 200, 50);
+                for (String name : apiCfg.getAuthHeaderNames()) {
+                    Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
+                    String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
+                    headerList.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
+                }
+                if (apiCfg.getAuthHeaderNames().isEmpty()) {
+                    headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
+                }
+                connTab.addChild(headerList);
+
+                TextField headerName = new TextField(0, 0, 95, "Header name");
+                TextField headerValue = new TextField(0, 0, 95, "Value", true);
+                connTab.addChild(headerName);
+                connTab.addChild(headerValue);
+                connTab.addChild(new Button(0, 0, 80, "Add Header", () -> {
+                    String hn = headerName.getText().trim();
+                    String hv = headerValue.getText().trim();
+                    if (!hn.isEmpty() && !hv.isEmpty()) {
+                        apiCfg.setAuthHeader(hn, hv);
+                        apiCfg.save();
+                        if (apiSync != null) apiSync.refreshClient();
+                        buildSettingsWindow();
+                    }
+                }));
+
+                TextField rmHeaderName = new TextField(0, 0, 120, "Header to remove");
+                connTab.addChild(rmHeaderName);
+                connTab.addChild(new Button(0, 0, 80, "Remove", () -> {
+                    String hn = rmHeaderName.getText().trim();
+                    if (!hn.isEmpty()) {
+                        apiCfg.removeAuthHeader(hn);
+                        apiCfg.save();
+                        buildSettingsWindow();
+                    }
+                }));
+
+                connTab.addChild(new Label(0, 0, 200, "Reset endpoint:", ColorScheme.get().textSecondary()));
+                TextField resetEpField = new TextField(0, 0, 200, "/reset");
+                resetEpField.setText(apiCfg.resetEndpoint);
+                resetEpField.setOnChange(v -> { apiCfg.resetEndpoint = v; apiCfg.save(); });
+                connTab.addChild(resetEpField);
+
+                connTab.addChild(new Label(0, 0, 200, "Reset key:", ColorScheme.get().textSecondary()));
+                TextField resetKeyField = new TextField(0, 0, 200, "Reset key", true);
+                if (!apiCfg.getDecodedResetKey().isEmpty()) resetKeyField.setText(apiCfg.getDecodedResetKey());
+                resetKeyField.setOnChange(v -> { apiCfg.setResetKey(v); apiCfg.save(); });
+                connTab.addChild(resetKeyField);
+
+                connTab.addChild(new CheckBox(0, 0, 200, "Auto-push on leave",
+                        apiCfg.autoPush,
+                        v -> { apiCfg.autoPush = v; apiCfg.save(); }));
+
+                Label connStatus = new Label(0, 0, 200, apiCfg.isConfigured() ? "Status: Ready" : "Status: Not configured",
+                        ColorScheme.get().textSecondary());
+                connTab.addChild(connStatus);
+
+                connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Testing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.testConnection(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Connected (" + r.statusCode() + " OK)");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Pushing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.pushSession(ArchivistMod.INSTANCE.dataCollector, r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Push OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Push failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Download Logs", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Downloading...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.downloadLogs(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Download OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Download failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Reset Logs", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Resetting...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.resetLogs(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Reset OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Reset failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+            }
+        } else if ("REST API".equals(adapterType)) {
+            // ── REST API fields ──
+            if (apiCfg != null) {
+                connTab.addChild(new Label(0, 0, 200, "Base URL:", ColorScheme.get().textSecondary()));
+                TextField baseUrlField = new TextField(0, 0, 200, "https://example.com/api");
+                baseUrlField.setText(apiCfg.baseUrl);
+                baseUrlField.setOnChange(v -> {
+                    apiCfg.baseUrl = v.replaceAll("/+$", ""); // strip trailing slashes
+                    apiCfg.save();
+                    if (apiSync != null) apiSync.refreshClient();
+                });
+                connTab.addChild(baseUrlField);
+
+                connTab.addChild(new Label(0, 0, 200, "Endpoints:", ColorScheme.get().textSecondary()));
+                TextField pushEp = new TextField(0, 0, 200, "/push");
+                pushEp.setText(apiCfg.pushEndpoint);
+                pushEp.setOnChange(v -> { apiCfg.pushEndpoint = v; apiCfg.save(); });
+                connTab.addChild(pushEp);
+
+                TextField dlEp = new TextField(0, 0, 200, "/download");
+                dlEp.setText(apiCfg.downloadEndpoint);
+                dlEp.setOnChange(v -> { apiCfg.downloadEndpoint = v; apiCfg.save(); });
+                connTab.addChild(dlEp);
+
+                TextField resetEp = new TextField(0, 0, 200, "/reset");
+                resetEp.setText(apiCfg.resetEndpoint);
+                resetEp.setOnChange(v -> { apiCfg.resetEndpoint = v; apiCfg.save(); });
+                connTab.addChild(resetEp);
+
+                connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
+
+                ScrollableList headerList = new ScrollableList(0, 0, 200, 50);
+                for (String name : apiCfg.getAuthHeaderNames()) {
+                    Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
+                    String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
+                    headerList.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
+                }
+                if (apiCfg.getAuthHeaderNames().isEmpty()) {
+                    headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
+                }
+                connTab.addChild(headerList);
+
+                TextField headerName = new TextField(0, 0, 95, "Header name");
+                TextField headerValue = new TextField(0, 0, 95, "Value", true);
+                connTab.addChild(headerName);
+                connTab.addChild(headerValue);
+                connTab.addChild(new Button(0, 0, 80, "Add Header", () -> {
+                    String hn = headerName.getText().trim();
+                    String hv = headerValue.getText().trim();
+                    if (!hn.isEmpty() && !hv.isEmpty()) {
+                        apiCfg.setAuthHeader(hn, hv);
+                        apiCfg.save();
+                        if (apiSync != null) apiSync.refreshClient();
+                        buildSettingsWindow();
+                    }
+                }));
+
+                TextField rmHeaderName = new TextField(0, 0, 120, "Header to remove");
+                connTab.addChild(rmHeaderName);
+                connTab.addChild(new Button(0, 0, 80, "Remove", () -> {
+                    String hn = rmHeaderName.getText().trim();
+                    if (!hn.isEmpty()) {
+                        apiCfg.removeAuthHeader(hn);
+                        apiCfg.save();
+                        buildSettingsWindow();
+                    }
+                }));
+
+                connTab.addChild(new Label(0, 0, 200, "Reset key:", ColorScheme.get().textSecondary()));
+                TextField resetKeyField = new TextField(0, 0, 200, "Reset key", true);
+                if (!apiCfg.getDecodedResetKey().isEmpty()) resetKeyField.setText(apiCfg.getDecodedResetKey());
+                resetKeyField.setOnChange(v -> { apiCfg.setResetKey(v); apiCfg.save(); });
+                connTab.addChild(resetKeyField);
+
+                connTab.addChild(new CheckBox(0, 0, 200, "Auto-push on leave",
+                        apiCfg.autoPush,
+                        v -> { apiCfg.autoPush = v; apiCfg.save(); }));
+
+                // Status label for inline feedback
+                Label connStatus = new Label(0, 0, 200, apiCfg.isConfigured() ? "Status: Ready" : "Status: Not configured",
+                        ColorScheme.get().textSecondary());
+                connTab.addChild(connStatus);
+
+                connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Testing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.testConnection(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Connected (" + r.statusCode() + " OK)");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Pushing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.pushSession(ArchivistMod.INSTANCE.dataCollector, r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Push OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Push failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Download Logs", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Downloading...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.downloadLogs(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Download OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Download failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+            }
+        } else if (!"None".equals(adapterType)) {
+            // ── Database fields (Discord Bot, Custom) ──
+            connTab.addChild(new Label(0, 0, 200, "Webhook URL:", ColorScheme.get().textSecondary()));
+            TextField connStr = new TextField(0, 0, 200, "https://discord.com/api/webhooks/...");
+            if (cfg != null) connStr.setText(cfg.databaseConnectionString);
+            connStr.setOnChange(v -> { if (cfg != null) { cfg.databaseConnectionString = v; cfg.save(); } });
+            connTab.addChild(connStr);
+
+            connTab.addChild(new Label(0, 0, 200, "Bot Token:", ColorScheme.get().textSecondary()));
+            TextField authToken = new TextField(0, 0, 200, "Bot token (optional)", true);
+            if (cfg != null && !cfg.databaseAuthToken.isEmpty()) authToken.setText(cfg.databaseAuthToken);
+            authToken.setOnChange(v -> { if (cfg != null) { cfg.databaseAuthToken = v; cfg.save(); } });
+            connTab.addChild(authToken);
+
+            connTab.addChild(new CheckBox(0, 0, 200, "Auto-upload on log",
+                    cfg != null && cfg.autoUploadOnLog,
+                    v -> { if (cfg != null) { cfg.autoUploadOnLog = v; cfg.save(); } }));
+
+            Label dbStatus = new Label(0, 0, 200, "Status: " +
+                    (ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.databaseManager.getStatusMessage() : "N/A"),
+                    ColorScheme.get().textSecondary());
+            connTab.addChild(dbStatus);
+
+            connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
+                if (ArchivistMod.INSTANCE != null) {
+                    DatabaseManager dbm = ArchivistMod.INSTANCE.databaseManager;
+                    if (cfg != null) {
+                        dbStatus.setText("Status: Connecting...");
+                        dbm.connect(cfg.databaseAdapterType, cfg.databaseConnectionString, cfg.databaseAuthToken);
+                        EventBus.post(LogEvent.Type.DB_SYNC, "Testing " + cfg.databaseAdapterType + " connection...");
+                    }
+                }
+            }));
+            connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
+                if (ArchivistMod.INSTANCE == null) return;
+                DatabaseManager dbm = ArchivistMod.INSTANCE.databaseManager;
+                if (dbm.getActiveAdapter() == null) {
+                    dbStatus.setText("Status: No active adapter");
+                    dbStatus.setColor(ColorScheme.get().eventError());
+                    return;
+                }
+                dbStatus.setText("Status: Pushing...");
+                dbStatus.setColor(ColorScheme.get().textSecondary());
+                ServerLogData snapshot = ServerLogData.fromCollector(ArchivistMod.INSTANCE.dataCollector);
+                dbm.upload(snapshot);
+                EventBus.post(LogEvent.Type.DB_SYNC, "Push initiated");
+            }));
+        } else {
+            connTab.addChild(new Label(0, 0, 200, "Select a connection type above.", ColorScheme.get().textSecondary()));
+        }
+
+        // ── Exceptions Tab ──────────────────────────────────────────────────
+        Panel exceptionsTab = tabs.addTab("Exceptions");
+        ExceptionResolver exResolver = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.exceptionResolver : null;
+
+        exceptionsTab.addChild(new Label(0, 0, 200, "Proxy/hub servers where the domain", ColorScheme.get().textSecondary()));
+        exceptionsTab.addChild(new Label(0, 0, 200, "is resolved from tab & scoreboard:", ColorScheme.get().textSecondary()));
+
+        ScrollableList exList = new ScrollableList(0, 0, 200, 80);
+        if (exResolver != null) {
+            for (String srv : exResolver.getServers()) {
+                exList.addItem(srv, ColorScheme.get().textPrimary());
+            }
+            if (exResolver.getServers().isEmpty()) {
+                exList.addItem("(none)", ColorScheme.get().textSecondary());
+            }
+        }
+        exceptionsTab.addChild(exList);
+
+        TextField addExField = new TextField(0, 0, 140, "e.g. minehut.com");
+        exceptionsTab.addChild(addExField);
+        exceptionsTab.addChild(new Button(0, 0, 80, "Add", () -> {
+            String srv = addExField.getText().trim();
+            if (!srv.isEmpty() && exResolver != null) {
+                Set<String> updated = new LinkedHashSet<>(exResolver.getServers());
+                updated.add(srv.toLowerCase(Locale.ROOT));
+                exResolver.setServers(updated);
+                exResolver.save();
+                buildSettingsWindow();
+            }
+        }));
+
+        TextField rmExField = new TextField(0, 0, 140, "Server to remove");
+        exceptionsTab.addChild(rmExField);
+        exceptionsTab.addChild(new Button(0, 0, 80, "Remove", () -> {
+            String srv = rmExField.getText().trim();
+            if (!srv.isEmpty() && exResolver != null) {
+                Set<String> updated = new LinkedHashSet<>(exResolver.getServers());
+                updated.remove(srv.toLowerCase(Locale.ROOT));
+                exResolver.setServers(updated);
+                exResolver.save();
+                buildSettingsWindow();
+            }
+        }));
+
+        // ── Export Tab ──────────────────────────────────────────────────────
+        Panel exportTab = tabs.addTab("Export");
+        exportTab.addChild(new Label(0, 0, 200, "Export current data:", ColorScheme.get().textSecondary()));
+
+        exportTab.addChild(new Button(0, 0, 100, "Export JSON", () -> {
+            String path = LogExporter.exportJson();
+            EventBus.post(LogEvent.Type.SYSTEM, path != null ? "Exported: " + path : "Export failed");
+        }));
+        exportTab.addChild(new Button(0, 0, 100, "Export CSV", () -> {
+            String path = LogExporter.exportCsv();
+            EventBus.post(LogEvent.Type.SYSTEM, path != null ? "Exported: " + path : "Export failed");
+        }));
+        exportTab.addChild(new Button(0, 0, 100, "Copy to Clipboard", () -> {
+            LogExporter.exportToClipboard();
+            EventBus.post(LogEvent.Type.SYSTEM, "Copied to clipboard");
+        }));
+
+        tabs.setActiveTab(settingsActiveTab);
+        settingsWindow.addChild(tabs);
+    }
+
+    private void buildInspectorWindow() {
+        inspectorWindow.clearChildren();
+
+        inspectorList = new ScrollableList(0, 0, 230, 170);
+        inspectorList.setAnchor(Widget.Anchor.FILL_ABOVE);
+        inspectorList.setMargins(0, 0, 34, 0); // leave room for buttons
+
+        GuiFingerprintEngine engine = GuiFingerprintEngine.getInstance();
+        GuiCapture capture = engine.getLastInspectorCapture();
+        if (capture != null) {
+            inspectorList.addItem("Title: " + capture.titleRaw, ColorScheme.get().accent());
+            inspectorList.addItem("Type: " + capture.containerType + " (" + capture.items.size() + " items)", ColorScheme.get().textSecondary());
+            inspectorList.addItem("Captured: " + capture.timestamp, ColorScheme.get().textSecondary());
+            inspectorList.addItem("", 0);
+
+            for (GuiItemData item : capture.items) {
+                inspectorList.addItem("[" + item.slot() + "] " + item.materialId(), ColorScheme.get().accent());
+                inspectorList.addItem("  Name: " + item.displayName(), ColorScheme.get().textPrimary());
+                for (String line : item.lore()) {
+                    inspectorList.addItem("  Lore: " + line, ColorScheme.get().textSecondary());
+                }
+                inspectorList.addItem("  Count: " + item.count() + " | Glint: " + (item.hasEnchantGlint() ? "yes" : "no"), ColorScheme.get().textSecondary());
+            }
+        } else {
+            inspectorList.addItem("No capture yet.", ColorScheme.get().textSecondary());
+            inspectorList.addItem("Enable with !inspector then", ColorScheme.get().textSecondary());
+            inspectorList.addItem("open any server GUI.", ColorScheme.get().textSecondary());
+        }
+
+        inspectorWindow.addChild(inspectorList);
+
+        Button inspCopyBtn = new Button(0, 0, 100, "Copy All", () -> {
+            GuiCapture cap = engine.getLastInspectorCapture();
+            if (cap == null) return;
+            StringBuilder sb = new StringBuilder();
+            sb.append("Title: ").append(cap.title).append("\n");
+            sb.append("Type: ").append(cap.containerType).append("\n\n");
+            for (GuiItemData item : cap.items) {
+                sb.append("[").append(item.slot()).append("] ").append(item.materialId()).append("\n");
+                sb.append("  Name: ").append(item.displayName()).append("\n");
+                for (String line : item.lore()) {
+                    sb.append("  Lore: ").append(line).append("\n");
+                }
+                sb.append("  Count: ").append(item.count()).append(" | Glint: ").append(item.hasEnchantGlint()).append("\n\n");
+            }
+            Minecraft.getInstance().keyboardHandler.setClipboard(sb.toString());
+            EventBus.post(LogEvent.Type.SYSTEM, "Inspector data copied to clipboard");
+        });
+        inspCopyBtn.setAnchor(Widget.Anchor.BOTTOM);
+        inspCopyBtn.setFixedHeight(14);
+        inspCopyBtn.setMargins(0, 0, 16, 0); // 16px from bottom for export button below
+        inspectorWindow.addChild(inspCopyBtn);
+
+        Button probeBtn = new Button(0, 0, 120, "Run GUI Probe", () -> {
+            AutoProbeSystem probe = AutoProbeSystem.getInstance();
+            if (!probe.isProbing()) {
+                var commands = GuiFingerprintEngine.getInstance().getDatabase().getAllProbeCommands();
+                if (!commands.isEmpty()) {
+                    probe.startProbing(commands);
+                }
+            }
+        });
+        probeBtn.setAnchor(Widget.Anchor.BOTTOM);
+        probeBtn.setFixedHeight(14);
+        inspectorWindow.addChild(probeBtn);
+    }
+
+    private void buildServerListWindow() {
+        serverListWindow.clearChildren();
+
+        ServerListPanel panel = new ServerListPanel(0, 0, 380, 310);
+        panel.setAnchor(Widget.Anchor.FILL);
+
+        List<ServerLogData> logs = ServerLogReader.readAll();
+        serverListWindow.setTitle("Server Logs (" + logs.size() + ")");
+
+        for (ServerLogData log : logs) {
+            panel.addServer(
+                    log.getDisplayName(),
+                    log.version,
+                    log.brand,
+                    log.plugins.size(),
+                    log.worlds.size(),
+                    log.timestamp
+            );
+        }
+
+        panel.setOnServerSelected(addr -> {
+            EventBus.post(LogEvent.Type.SYSTEM, "Selected: " + addr);
+        });
+
+        panel.setOnViewDetails(addr -> {
+            // Find the log data and populate info windows
+            for (ServerLogData log : logs) {
+                if (log.getDisplayName().equals(addr)) {
+                    showServerLogDetail(log);
+                    break;
+                }
+            }
+        });
+
+        panel.setOnExportServer(addr -> {
+            for (ServerLogData log : logs) {
+                if (log.getDisplayName().equals(addr)) {
+                    LogExporter.exportServerLog(log);
+                    break;
+                }
+            }
+        });
+
+        panel.setOnQuickConnect(addr -> {
+            // Quick-connect: close the GUI and connect to the server
+            for (ServerLogData log : logs) {
+                if (log.getDisplayName().equals(addr)) {
+                    String connectAddr = !"unknown".equals(log.domain) ? log.domain : log.ip;
+                    if (log.port != 25565) connectAddr += ":" + log.port;
+                    final String serverAddr = connectAddr;
+                    Minecraft mc = Minecraft.getInstance();
+                    mc.execute(() -> {
+                        try {
+                            net.minecraft.client.multiplayer.ServerData serverData =
+                                    new net.minecraft.client.multiplayer.ServerData(addr, serverAddr, net.minecraft.client.multiplayer.ServerData.Type.OTHER);
+                            net.minecraft.client.multiplayer.resolver.ServerAddress parsed =
+                                    net.minecraft.client.multiplayer.resolver.ServerAddress.parseString(serverAddr);
+                            net.minecraft.client.gui.screens.ConnectScreen.startConnecting(
+                                    mc.screen, mc, parsed, serverData, false, null);
+                        } catch (Exception e) {
+                            EventBus.post(LogEvent.Type.ERROR, "Quick-connect failed: " + e.getMessage());
+                        }
+                    });
+                    break;
+                }
+            }
+        });
+
+        panel.setOnDeleteServer(addr -> {
+            // Delete the log file
+            for (ServerLogData log : logs) {
+                if (log.getDisplayName().equals(addr)) {
+                    try {
+                        java.nio.file.Path logDir = net.fabricmc.loader.api.FabricLoader.getInstance()
+                                .getGameDir().resolve(ArchivistMod.INSTANCE.config.logFolder);
+                        java.nio.file.Files.deleteIfExists(logDir.resolve(log.fileName));
+                        EventBus.post(LogEvent.Type.SYSTEM, "Deleted: " + log.fileName);
+                        buildServerListWindow(); // rebuild
+                    } catch (Exception e) {
+                        EventBus.post(LogEvent.Type.ERROR, "Delete failed: " + e.getMessage());
+                    }
+                    break;
+                }
+            }
+        });
+
+        serverListWindow.addChild(panel);
+    }
+
+    private void showServerLogDetail(ServerLogData log) {
+        // Populate server info window with historical data
+        serverInfoWindow.clearChildren();
+        addKV(serverInfoWindow, "IP", log.ip);
+        addKV(serverInfoWindow, "Port", String.valueOf(log.port));
+        addKV(serverInfoWindow, "Domain", log.domain);
+        addKV(serverInfoWindow, "Version", log.version);
+        addKV(serverInfoWindow, "Brand", log.brand);
+        addKV(serverInfoWindow, "Players", String.valueOf(log.playerCount));
+        addKV(serverInfoWindow, "Last Seen", log.timestamp);
+        serverInfoWindow.setVisible(true);
+
+        // Populate plugin list
+        pluginListWindow.clearChildren();
+        pluginListWindow.setTitle("Plugins (" + log.plugins.size() + ")");
+        ScrollableList pList = new ScrollableList(0, 0, 160, 160);
+        for (String p : log.plugins) {
+            pList.addItem(p, ColorScheme.get().eventPlugin());
+        }
+        pluginListWindow.addChild(pList);
+        pluginListWindow.setVisible(true);
+
+        // Populate world info
+        worldInfoWindow.clearChildren();
+        worldInfoWindow.setTitle("Worlds (" + log.worlds.size() + ")");
+        for (ServerLogData.WorldSession ws : log.worlds) {
+            worldInfoWindow.addChild(new Label(0, 0, 170, ws.dimension, ColorScheme.get().accent()));
+            worldInfoWindow.addChild(new Label(0, 0, 170, "  " + ws.timestamp, ColorScheme.get().textSecondary()));
+            if (ws.resourcePack != null) {
+                worldInfoWindow.addChild(new Label(0, 0, 170, "  RP: " + ws.resourcePack, ColorScheme.get().textSecondary()));
+            }
+        }
+        if (!log.detectedAddresses.isEmpty()) {
+            worldInfoWindow.addChild(new Label(0, 0, 170, ""));
+            worldInfoWindow.addChild(new Label(0, 0, 170, "Detected Addresses:", ColorScheme.get().accent()));
+            for (String addr : log.detectedAddresses) {
+                worldInfoWindow.addChild(new Label(0, 0, 170, "  " + addr, ColorScheme.get().textSecondary()));
+            }
+        }
+        worldInfoWindow.setVisible(true);
+    }
+
+    private String buildServerLogJson(ServerLogData log) {
+        com.google.gson.JsonObject root = new com.google.gson.JsonObject();
+        root.addProperty("timestamp", log.timestamp);
+        com.google.gson.JsonObject info = new com.google.gson.JsonObject();
+        info.addProperty("ip", log.ip);
+        info.addProperty("port", log.port);
+        info.addProperty("domain", log.domain);
+        info.addProperty("brand", log.brand);
+        info.addProperty("version", log.version);
+        info.addProperty("player_count", log.playerCount);
+        root.add("server_info", info);
+        com.google.gson.JsonArray plugins = new com.google.gson.JsonArray();
+        for (String p : log.plugins) {
+            com.google.gson.JsonObject po = new com.google.gson.JsonObject();
+            po.addProperty("name", p);
+            plugins.add(po);
+        }
+        root.add("plugins", plugins);
+        return root.toString();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Render
+    // ══════════════════════════════════════════════════════════════════════════
+
+    @Override
+    public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
+        // ── Layer 1: Screen overlay ──
+        g.fill(0, 0, width, height, ColorScheme.get().screenOverlay());
+
+        // ── Layer 2: Gradient overlay ──
+        GradientConfig grad = ColorScheme.get().getBackgroundGradient();
+        if (grad != null) {
+            g.fillGradient(0, 0, this.width, this.height, grad.topColor(), grad.bottomColor());
+        }
+
+        // Update live data
+        updateLiveData();
+
+        // Update active state
+        for (DraggableWindow w : windows) w.setActive(false);
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).isVisible()) {
+                windows.get(i).setActive(true);
+                break;
+            }
+        }
+
+        // ── Layer 4: Tooltip begin frame ──
+        TooltipManager.beginFrame();
+
+        // Render windows (first = back, last = front)
+        for (DraggableWindow w : windows) {
+            w.render(g, mouseX, mouseY, delta);
+        }
+
+        // Taskbar always on top
+        taskbar.updatePosition(width, height);
+        taskbar.render(g, mouseX, mouseY, delta);
+
+        // Popup overlay (above windows and taskbar)
+        PopupLayer.render(g, mouseX, mouseY, delta);
+
+        // Global search overlay (above everything except tooltips)
+        if (globalSearch.isOpen()) {
+            globalSearch.render(g, mouseX, mouseY, delta);
+        }
+
+        // ── Layer 5: Tooltips (topmost) ──
+        TooltipManager.render(g);
+    }
+
+    private void updateLiveData() {
+        // Push new events to connection log and console
+        List<LogEvent> events = EventBus.getEvents();
+        int currentSize = events.size();
+        if (currentSize > lastEventCount) {
+            for (int i = lastEventCount; i < currentSize; i++) {
+                LogEvent event = events.get(i);
+                int color = ColorScheme.get().eventColor(event.getType());
+                if (connectionLogList != null) {
+                    connectionLogList.addItem(event.formatted(), color);
+                }
+            }
+            lastEventCount = currentSize;
+        }
+
+        // Update plugin count in title
+        ServerDataCollector dc = getDataCollector();
+        if (dc != null && pluginListWindow != null) {
+            pluginListWindow.setTitle("Plugins (" + dc.getPlugins().size() + ")");
+        }
+
+        // Refresh inspector when a new capture arrives
+        GuiFingerprintEngine engine = GuiFingerprintEngine.getInstance();
+        if (engine.isInspectorEnabled() && engine.getLastInspectorCapture() != null && inspectorWindow != null) {
+            if (!inspectorWindow.isVisible()) {
+                inspectorWindow.setVisible(true);
+            }
+            // Only rebuild inspector content if capture actually changed
+            GuiCapture currentCapture = engine.getLastInspectorCapture();
+            if (currentCapture != lastBuiltCapture) {
+                lastBuiltCapture = currentCapture;
+                buildInspectorWindow();
+            }
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Input
+    // ══════════════════════════════════════════════════════════════════════════
+
+    //? if >=1.21.9 {
+    @Override
+    public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean bl) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
+        return handleMouseClicked(mouseX, mouseY, button) || super.mouseClicked(event, bl);
+    }
+    //?} else {
+    /*@Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return handleMouseClicked(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
+    }
+    *///?}
+
+    private boolean handleMouseClicked(double mouseX, double mouseY, int button) {
+        // Popup overlay first (dropdown menus etc.)
+        if (PopupLayer.mouseClicked(mouseX, mouseY, button)) return true;
+
+        // Global search overlay first
+        if (globalSearch.isOpen()) {
+            if (globalSearch.containsPoint(mouseX, mouseY)) {
+                return globalSearch.onMouseClicked(mouseX, mouseY, button);
+            } else {
+                globalSearch.close();
+            }
+        }
+
+        // Taskbar first (always on top)
+        if (taskbar.containsPoint(mouseX, mouseY)) {
+            if (taskbar.onMouseClicked(mouseX, mouseY, button)) {
+                // Bring the clicked window to front
+                DraggableWindow active = taskbar.getActiveWindow();
+                if (active != null) {
+                    bringToFront(active);
+                }
+                return true;
+            }
+        }
+
+        // Windows in reverse order (top gets priority)
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            DraggableWindow w = windows.get(i);
+            if (w.isVisible() && w.containsPoint(mouseX, mouseY)) {
+                if (w.onMouseClicked(mouseX, mouseY, button)) {
+                    bringToFront(w);
+                    taskbar.setActiveWindow(w);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    //? if >=1.21.10 {
+
+    @Override
+    public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        double mouseX = event.x(); double mouseY = event.y(); int button = event.button();
+        if (PopupLayer.mouseReleased(mouseX, mouseY, button)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseReleased(mouseX, mouseY, button)) return true;
+        }
+        return super.mouseReleased(event);
+    }
+
+    @Override
+    public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double deltaX, double deltaY) {
+        double mouseX = event.x(); double mouseY = event.y(); int button = event.button();
+        if (PopupLayer.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        }
+        return super.mouseDragged(event, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (PopupLayer.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
+    public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
+        int keyCode = event.key(); int scanCode = event.scancode(); int modifiers = event.modifiers();
+        if (handleKeyPressed(keyCode, scanCode, modifiers)) return true;
+        return super.keyPressed(event);
+    }
+
+    @Override
+    public boolean charTyped(net.minecraft.client.input.CharacterEvent event) {
+        char chr = (char) event.codepoint(); int modifiers = event.modifiers();
+        if (handleCharTyped(chr, modifiers)) return true;
+        return super.charTyped(event);
+    }
+
+    //?} else {
+
+    /*@Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (PopupLayer.mouseReleased(mouseX, mouseY, button)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseReleased(mouseX, mouseY, button)) return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (PopupLayer.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (PopupLayer.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) return true;
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onMouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount)) return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (handleKeyPressed(keyCode, scanCode, modifiers)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (handleCharTyped(chr, modifiers)) return true;
+        return super.charTyped(chr, modifiers);
+    }
+    *///?}
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Unified Input Handlers (shared by both version branches)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private boolean handleKeyPressed(int keyCode, int scanCode, int modifiers) {
+        // Popup layer intercepts first (Escape closes popup)
+        if (PopupLayer.keyPressed(keyCode, scanCode, modifiers)) return true;
+
+        // Global search intercepts first when open
+        if (globalSearch.isOpen()) {
+            if (globalSearch.onKeyPressed(keyCode, scanCode, modifiers)) return true;
+        }
+
+        // Console Enter
+        if (keyCode == GLFW.GLFW_KEY_ENTER && consoleInput != null && consoleInput.isFocused()) {
+            submitConsoleCommand();
+            return true;
+        }
+
+        boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+
+        if (ctrl) {
+            switch (keyCode) {
+                case GLFW.GLFW_KEY_1 -> { toggleAndFocus(serverInfoWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_2 -> { toggleAndFocus(pluginListWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_3 -> { toggleAndFocus(worldInfoWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_4 -> { toggleAndFocus(connectionLogWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_5 -> { toggleAndFocus(consoleWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_F -> { openGlobalSearch(); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_S -> { saveConfig(); shortcutConsumedThisFrame = true; return true; }
+            }
+        }
+
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onKeyPressed(keyCode, scanCode, modifiers)) return true;
+        }
+        return false;
+    }
+
+    private boolean handleCharTyped(char chr, int modifiers) {
+        // Popup layer intercepts first
+        if (PopupLayer.charTyped(chr, modifiers)) return true;
+
+        // Suppress stray charTyped after shortcut consumption
+        if (shortcutConsumedThisFrame) {
+            shortcutConsumedThisFrame = false;
+            return true;
+        }
+        if (globalSearch.isOpen()) {
+            if (globalSearch.onCharTyped(chr, modifiers)) return true;
+        }
+        for (int i = windows.size() - 1; i >= 0; i--) {
+            if (windows.get(i).onCharTyped(chr, modifiers)) return true;
+        }
+        return false;
+    }
+
+    private void toggleAndFocus(DraggableWindow window) {
+        if (window == null) return;
+        if (!window.isVisible()) {
+            window.setVisible(true);
+        }
+        window.setMinimized(false);
+        bringToFront(window);
+    }
+
+    private void openGlobalSearch() {
+        if (globalSearch.isOpen()) {
+            globalSearch.close();
+        } else {
+            globalSearch.open();
+        }
+    }
+
+    private void saveConfig() {
+        saveWindowStates();
+        EventBus.post(LogEvent.Type.SYSTEM, "Config saved");
+    }
+
+    private List<GlobalSearchOverlay.SearchResult> performGlobalSearch(String query) {
+        List<GlobalSearchOverlay.SearchResult> results = new ArrayList<>();
+        ColorScheme cs = ColorScheme.get();
+
+        // Search plugin list
+        if (pluginList != null) {
+            for (ScrollableList.ListItem item : pluginList.getItems()) {
+                if (item.text.toLowerCase().contains(query)) {
+                    results.add(new GlobalSearchOverlay.SearchResult("plugin_list", "Plugins", item.text, cs.eventPlugin()));
+                }
+            }
+        }
+
+        // Search connection log
+        if (connectionLogList != null) {
+            for (ScrollableList.ListItem item : connectionLogList.getItems()) {
+                if (item.text.toLowerCase().contains(query)) {
+                    results.add(new GlobalSearchOverlay.SearchResult("connection_log", "Log", item.text, item.color));
+                }
+            }
+        }
+
+        // Search console
+        if (consoleOutput != null) {
+            for (ScrollableList.ListItem item : consoleOutput.getItems()) {
+                if (item.text.toLowerCase().contains(query)) {
+                    results.add(new GlobalSearchOverlay.SearchResult("console", "Console", item.text, item.color));
+                }
+            }
+        }
+
+        // Search server info labels
+        for (Widget child : serverInfoWindow.getChildren()) {
+            if (child instanceof Label l) {
+                // Labels don't expose text easily, skip for now
+            }
+        }
+
+        return results;
+    }
+
+    private void bringToFront(DraggableWindow window) {
+        windows.remove(window);
+        windows.add(window);
+    }
+
+    private void addKV(DraggableWindow window, String key, String value) {
+        window.addChild(new Label(0, 0, 180, key + ": " + value, ColorScheme.get().textPrimary()));
+    }
+
+    private ServerDataCollector getDataCollector() {
+        return ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.dataCollector : null;
+    }
+
+    private ArchivistConfig getExtConfig() {
+        return ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.extendedConfig : null;
+    }
+
+    private void applyTheme(String name) {
+        if (name == null) return;
+        ColorScheme theme = ThemeManager.getInstance().getTheme(name);
+        if (theme != null) ColorScheme.setActive(theme);
+    }
+
+    @Override
+    public void onClose() {
+        saveWindowStates();
+        if (parent != null) {
+            Minecraft.getInstance().setScreen(parent);
+        } else {
+            super.onClose();
+        }
+    }
+
+    @Override
+    public void removed() {
+        saveWindowStates();
+        super.removed();
+    }
+
+    private void saveWindowStates() {
+        if (guiConfig == null) return;
+        for (DraggableWindow w : windows) {
+            guiConfig.setWindowState(w.getId(), new GuiConfig.WindowState(
+                    w.getX(), w.getY(), w.getWidth(), w.getHeight(),
+                    w.isVisible(), w.isMinimized()
+            ));
+        }
+        guiConfig.activeTheme = ColorScheme.get().name();
+        guiConfig.save();
+    }
+}
