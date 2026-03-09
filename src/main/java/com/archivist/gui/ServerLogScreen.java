@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 public class ServerLogScreen extends Screen {
 
     private static final String[] FILTER_MODES = {"All", "Name", "Plugin", "Brand"};
+    private static final String[] SORT_MODES = {"Recent", "Name", "Plugins", "Players"};
     private static final int HEADER_H = 48;
     private static final int FOOTER_H = 36;
 
@@ -39,6 +40,7 @@ public class ServerLogScreen extends Screen {
     private ServerListWidget listWidget;
     private EditBox searchBox;
     private int filterIndex = 0;
+    private int sortIndex = 0;
 
     private int filteredCount = 0;
     private int totalCount    = 0;
@@ -71,15 +73,22 @@ public class ServerLogScreen extends Screen {
             refreshList();
         }).bounds(cx - 15, 24, 65, 20).build());
 
+        // Sort mode cycle button
+        addRenderableWidget(Button.builder(Component.literal("Sort: " + SORT_MODES[sortIndex]), btn -> {
+            sortIndex = (sortIndex + 1) % SORT_MODES.length;
+            btn.setMessage(Component.literal("Sort: " + SORT_MODES[sortIndex]));
+            refreshList();
+        }).bounds(cx + 55, 24, 65, 20).build());
+
         // Glossary button
         addRenderableWidget(Button.builder(Component.literal("Glossary"), btn ->
                 minecraft.setScreen(new GlossaryEditorScreen(this))
-        ).bounds(cx + 55, 24, 65, 20).build());
+        ).bounds(cx + 125, 24, 65, 20).build());
 
         // Exceptions button
         addRenderableWidget(Button.builder(Component.literal("Exceptions"), btn ->
                 minecraft.setScreen(new ExceptionEditorScreen(this))
-        ).bounds(cx + 125, 24, 90, 20).build());
+        ).bounds(cx + 195, 24, 90, 20).build());
 
         // Options button — top-right, vertically centred in header
         addRenderableWidget(Button.builder(Component.literal("Options"), btn ->
@@ -173,6 +182,15 @@ public class ServerLogScreen extends Screen {
                 }
             }).collect(Collectors.toList());
         }
+
+        String sortMode = SORT_MODES[sortIndex];
+        java.util.Comparator<ServerLogData> comparator = switch (sortMode) {
+            case "Name"    -> java.util.Comparator.comparing(ServerLogData::getDisplayName, String.CASE_INSENSITIVE_ORDER);
+            case "Plugins" -> java.util.Comparator.<ServerLogData, Integer>comparing(d -> d.plugins.size()).reversed();
+            case "Players" -> java.util.Comparator.<ServerLogData, Integer>comparing(d -> d.playerCount).reversed();
+            default        -> java.util.Comparator.comparing((ServerLogData d) -> d.timestamp).reversed();
+        };
+        filtered.sort(comparator);
 
         filteredCount = filtered.size();
         totalCount    = allEntries.size();
