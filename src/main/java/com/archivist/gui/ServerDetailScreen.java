@@ -104,9 +104,12 @@ public class ServerDetailScreen extends Screen {
         addHeaderRegion(c2, 18, "Brand: ",   data.brand);
         addHeaderRegion(c3, 18, "Version: ", data.version);
 
-        // Row 2 — Players
+        // Row 2 — Players + MOTD
         String playersVal = data.playerCount >= 0 ? String.valueOf(data.playerCount) : "unknown";
         addHeaderRegion(c1, 30, "Players: ", playersVal);
+        if (data.motd != null && !data.motd.isBlank()) {
+            addHeaderRegion(c2, 30, "MOTD: ", data.motd);
+        }
 
         // Row 3
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
@@ -349,6 +352,10 @@ public class ServerDetailScreen extends Screen {
 
         String playersVal = data.playerCount >= 0 ? String.valueOf(data.playerCount) : "unknown";
         drawLabel(g, "Players", playersVal, c1, 30, 0xFFAAAAAA, 0xFFFFDD55);
+        if (data.motd != null && !data.motd.isBlank()) {
+            String truncMotd = data.motd.length() > 60 ? data.motd.substring(0, 57) + "..." : data.motd;
+            drawLabel(g, "MOTD", truncMotd, c2, 30, 0xFFAAAAAA, 0xFFCCCCCC);
+        }
 
         if (!data.domain.equals("unknown") && !data.domain.equals(data.ip)) {
             drawLabel(g, "Domain", data.domain, c1, 42, 0xFFAAAAAA, 0xFF88AAFF);

@@ -21,6 +21,7 @@ public class ServerDataCollector {
     public String resourcePack = null;
 
     public  int     playerCount      = 0;
+    public  String  motd             = null;
     private List<String> plugins         = new ArrayList<>();
     private boolean      pluginsReceived = false;
 
@@ -47,10 +48,13 @@ public class ServerDataCollector {
             ArchivistMod.LOGGER.warn("[Archivist] Could not read MC version: {}", e.getMessage());
         }
 
-        // ── Player count from server-list ping data ───────────────────────────────
+        // ── Player count + MOTD from server-list ping data ─────────────────────
         try {
             var sd = client.getCurrentServer();
-            if (sd != null && sd.players != null) playerCount = sd.players.online();
+            if (sd != null) {
+                if (sd.players != null) playerCount = sd.players.online();
+                if (sd.motd != null) motd = sd.motd.getString();
+            }
         } catch (Exception ignored) {}
 
         // ── Primary: use the address the player actually typed (ignores proxies) ──
@@ -222,7 +226,7 @@ public class ServerDataCollector {
 
     public void reset() {
         ip = "unknown"; port = 25565; domain = "unknown";
-        brand = "unknown"; version = "unknown";
+        brand = "unknown"; version = "unknown"; motd = null;
         dimension = "minecraft:overworld";
         resourcePack = null;
         plugins.clear();

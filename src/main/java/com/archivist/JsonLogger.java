@@ -117,6 +117,9 @@ public class JsonLogger {
             serverInfo.addProperty("brand",        data.brand);
             serverInfo.addProperty("version",      data.version);
             serverInfo.addProperty("player_count", data.playerCount);
+            if (data.motd != null && !data.motd.isBlank()) {
+                serverInfo.addProperty("motd", data.motd);
+            }
             root.add("server_info", serverInfo);
 
             root.add("plugins",                  finalPlugins);
