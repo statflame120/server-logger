@@ -21,20 +21,20 @@ public class ClientPacketListenerMixin {
     @Inject(method = "handleCommands", at = @At("TAIL"))
     private void serverLogger$onCommandTree(ClientboundCommandsPacket packet,
                                             CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         ArchivistMod.INSTANCE.pluginScanner.onCommandTree(this.commands);
     }
 
     @Inject(method = "handleCommandSuggestions", at = @At("HEAD"))
     private void serverLogger$onSuggestions(ClientboundCommandSuggestionsPacket packet,
                                             CallbackInfo ci) throws Throwable {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         ArchivistMod.INSTANCE.pluginScanner.onCommandSuggestions(packet);
     }
 
     @Inject(method = "handleLogin", at = @At("TAIL"))
     private void serverLogger$onLogin(ClientboundLoginPacket packet, CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         try {
             //? if >=1.21.11
             String dim = packet.commonPlayerSpawnInfo().dimension().identifier().toString();
@@ -48,7 +48,7 @@ public class ClientPacketListenerMixin {
 
     @Inject(method = "handleRespawn", at = @At("TAIL"))
     private void serverLogger$onRespawn(ClientboundRespawnPacket packet, CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         try {
             //? if >=1.21.11
             String dim = packet.commonPlayerSpawnInfo().dimension().identifier().toString();
@@ -62,7 +62,7 @@ public class ClientPacketListenerMixin {
     @Inject(method = "handleSystemChat", at = @At("HEAD"))
     private void serverLogger$onSystemChat(ClientboundSystemChatPacket packet,
                                            CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         try {
             Component content = packet.content();
             if (content != null) {
@@ -74,7 +74,7 @@ public class ClientPacketListenerMixin {
     @Inject(method = "handlePlayerChat", at = @At("HEAD"))
     private void serverLogger$onPlayerChat(ClientboundPlayerChatPacket packet,
                                            CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         try {
             ArchivistMod.INSTANCE.dataCollector.onChatMessage(
                     Component.nullToEmpty(packet.body().content()).getString());
@@ -83,7 +83,7 @@ public class ClientPacketListenerMixin {
 
     @Inject(method = "handleTabListCustomisation", at = @At("HEAD"))
     private void serverLogger$onTabList(ClientboundTabListPacket packet, CallbackInfo ci) {
-        if (ArchivistMod.INSTANCE == null) return;
+        if (ArchivistMod.INSTANCE == null || !ArchivistMod.INSTANCE.config.enabled) return;
         try {
             String header = packet.header().getString();
             String footer = packet.footer().getString();
