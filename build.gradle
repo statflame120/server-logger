@@ -4,7 +4,7 @@ plugins {
 	id 'java'
 }
 
-version = "${findProperty('display_version') ?: project.minecraft_version}_${project.mod_version}"
+version = "${findProperty('display_version') ?: project.minecraft_version}-${project.mod_version}"
 group   = project.maven_group
 
 base {
