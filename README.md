@@ -1,18 +1,21 @@
 # Archivist
 
-A Fabric client-side mod for Minecraft that automatically detects and records server plugins, connection metadata, and world info whenever you join a multiplayer server.
+A Fabric client-side utility mod for Minecraft that automatically detects and records server plugins, connection metadata, and world info whenever you join a multiplayer server.
 
 ---
 
 ## Features
 
-- **Automatic plugin detection:** scans the server's command tree on join
-- **Server logs:** saves each server's data to a JSON file in `.minecraft/server-logs/` for later review
-- **Glossary:** a built-in dictionary resolves common command aliases to canonical plugin names (e.g. `lp` → `luckperms`, `we` → `worldedit`)
-- **Glossary plugin highlighting:** plugins identified via the glossary are colored blue in the detailed view
-- **Resource pack & URL tracking:** detects URLs embedded in chat, tab-list, scoreboards, and resource pack pushes
-- **In-game GUI:** browse, search, filter, and manage all logged servers without leaving the game
-- **Options screen:** toggle auto-clipboard, toast notifications, and in-game status messages
+- **Automatic plugin detection** via command tree scanning, tab-complete probing, and GUI fingerprinting
+- **Server logging** — saves each server's data to JSON in `.minecraft/archivist/server-logs/`
+- **GUI fingerprinting** — identifies plugins by their inventory window signatures
+- **Auto-scraping** — sends configurable commands on join to trigger and capture plugin GUIs
+- **Exception server resolver** — detects proxy/hub networks (Minehut, Hypixel, etc.) and resolves the real sub-server domain from tab-list and scoreboard
+- **URL & address extraction** — tracks IPs, domains, and URLs found in chat, MOTD, tab-list, scoreboards, and resource packs
+- **Plugin glossary** — built-in dictionary maps command aliases to canonical plugin names (e.g. `lp` → `luckperms`)
+- **Remote sync** — push, download, and reset logs via REST API with custom auth headers
+- **Export** — JSON, CSV, and clipboard export of server data and event logs
+- **7 color themes** — Amber, Violet, Midnight, Slate, Pear, Rose, Ocean (or add your own themes)
 
 ---
 
@@ -20,128 +23,95 @@ A Fabric client-side mod for Minecraft that automatically detects and records se
 
 | Key | Action |
 |-----|--------|
-| `Z` | Open the Server Logs GUI |
-
-Rebindable in **Options → Controls → Miscellaneous**.
+| `Z` | Open the Archivist GUI |
 
 ---
 
-## GUI Overview
-<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/f4401f9e-48be-4fe3-9fd3-81549c5faed0" />
+## GUI
 
+The main screen is a windowed desktop with 8 draggable, minimizable windows and a taskbar:
 
-### Server List screen (`Z`)
+| Window | Description |
+|--------|-------------|
+| **Server Info** | IP, port, domain, version, brand, player count, dimension, MOTD |
+| **Plugin List** | All detected plugins (command tree + scraper + fingerprint), with search and copy |
+| **World Info** | Dimension, difficulty, time, weather, spawn, world border, gamemode, resource pack |
+| **Connection Log** | Color-coded event timeline (connect, disconnect, brand, plugin, world, etc.) |
+| **Console** | Command input with autocomplete — run `!help` for a full list |
+| **Settings** | General, Theme, Connections, Exceptions, and Export tabs |
+| **Inspector** | Debug view for GUI fingerprint captures |
+| **Server Logs** | Historical list of all visited servers with sort, search, and CSV export |
 
-The main screen lists every logged server, sorted by most recently visited.
+### Console commands
 
-- **Search box:** filter by name, plugin, or software
-- **Counter:** live `x / total` count updates as you type in the search box
-- **Double-click** an entry to open its detail view
-- **Add:** manually create an entry for a server you haven't visited yet
-- **Remove / Undo:** delete the selected entry; `Delete` key also works; undo restores it from disk
-- **Glossary:** open the alias editor
-- **Options:** open the options screen (top-right corner)
+| Command | Description |
+|---------|-------------|
+| `!help` | List all commands |
+| `!info` | Current server summary |
+| `!plugins` | List detected plugins |
+| `!scan` | Rescan server info |
+| `!export json\|csv\|clipboard` | Export data |
+| `!db status\|sync\|download\|test\|reset confirm` | API sync operations |
+| `!db set baseurl <url>` | Set API base URL |
+| `!db set header <name> <value>` | Set auth header |
+| `!db remove header <name>` | Remove auth header |
+| `!theme [name]` | Switch or list themes |
+| `!probe` | Run GUI fingerprint probes |
+| `!inspector` | Toggle inspector mode |
+| `!clear` | Clear console |
 
-### Server Detail screen
-<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/ad4bf1e2-6bb1-49d7-bc7f-6e04d16aab6f" />
+### Settings tabs
 
-A two-panel layout showing full information for one server.
-
-- Left sidebar: detected addresses and worlds visited
-- Right grid: full plugin list — glossary-identified plugins shown in **blue**
-- **Scroll** over each panel independently with the mouse wheel
-- **Import:** opens `.minecraft/server-logs/` in the OS file manager
-- **Copy Plugins:** copies the full plugin list to clipboard as a comma-separated string
-
-### Glossary Editor screen
-<img width="1896" height="1076" alt="image" src="https://github.com/user-attachments/assets/42fddebf-e448-418c-9eac-c22417439cc8" />
-
-Map custom command names to plugin names. Changes are saved immediately and persist across restarts — the hardcoded defaults are only written on the very first launch and are never re-applied.
-
-- **Add:** enter a command and plugin name, press Add
-- **Import:** opens `.minecraft/config/` in the file manager so you can edit `server-logger-glossary.json` directly
-- **Copy All:** copies every mapping to clipboard (`command=plugin` format)
-- **Remove / Undo:** remove the selected mapping with undo support
-- **Save:** persists changes to disk; **Back** discards unsaved changes
-
-### Options screen
-<img width="1898" height="1079" alt="image" src="https://github.com/user-attachments/assets/2c68fb57-2996-4de7-9eeb-d27c1423de1e" />
-
-Accessible via the **Options** button in the top-right of the Server List screen.
-
-| Toggle | Default | Description |
-|--------|---------|-------------|
-| Auto Clipboard | OFF | Automatically copies detected plugins to clipboard on join |
-| Show Toasts | OFF | Shows a toast notification when plugins are detected |
-| Show Messages | OFF | Sends mod status and error messages to in-game chat |
+| Tab | Contents |
+|-----|----------|
+| **General** | Auto-scrape, silent scraper, log toggles, HUD summary, inspector mode, reset window positions |
+| **Theme** | Live preview theme switcher |
+| **Connections** | Database adapter (None / REST API / Archivist), auth headers, endpoints, auto-push |
+| **Exceptions** | Manage proxy/hub server list for domain resolution |
+| **Export** | JSON, CSV, and clipboard export buttons |
 
 ---
 
-## Data
+## Remote sync
 
-### Log files
+Archivist can push server logs to a REST API. Configure in Settings → Connections:
 
-Each server gets one JSON file at:
+- **Archivist mode** — simplified setup with base URL, custom auth headers, and reset key
+- **REST API mode** — full control over push/download/reset endpoints and auth headers
 
-```
-.minecraft/server-logs/<hostname or ip_port>.json
-```
+Auth headers are stored Base64-encoded. The API payload format:
 
 ```json
 {
-  "timestamp": "2025-03-05",
-  "server_info": {
-    "ip": "1.2.3.4",
-    "port": 25565,
-    "domain": "play.example.com",
-    "software": "Paper",
-    "version": "1.21.1"
-  },
-  "plugins": [
-    { "name": "essentialsx" },
-    { "name": "luckperms" }
-  ],
-  "detected_addresses": [],
-  "worlds": [
-    { "timestamp": "2025-03-05", "dimension": "minecraft:overworld" }
+  "servers": [
+    {
+      "timestamp": "2025-03-05",
+      "server_info": { "ip": "...", "port": 25565, "domain": "...", "brand": "...", "version": "..." },
+      "plugins": [{ "name": "essentialsx" }],
+      "detected_addresses": [],
+      "detected_game_addresses": [],
+      "worlds": [{ "dimension": "minecraft:overworld" }]
+    }
   ]
 }
 ```
 
-note: the plugins are merged. You keep the larger of the two sets.
+---
 
-### Config file
+## Data files
 
-```
-.minecraft/config/server-logger.json
-```
-
-```json
-{
-  "enabled": true,
-  "logFolder": "server-logs",
-  "autoClipboard": false,
-  "showToasts": false,
-  "showMessages": false
-}
-```
-
-### Glossary file
-
-```
-.minecraft/config/server-logger-glossary.json
-```
-
-```json
-{
-  "entries": {
-    "lp": "luckperms",
-    "we": "worldedit"
-  }
-}
-```
-
-The glossary ships with ~90 common aliases pre-loaded.
+| File | Location | Description |
+|------|----------|-------------|
+| Server logs | `.minecraft/archivist/server-logs/<address>.json` | Per-server visit history |
+| Config | `.minecraft/config/archivist.json` | Core settings |
+| Extended config | `.minecraft/config/archivist_extended.json` | Scraper, database, logging settings |
+| API config | `.minecraft/archivist/api_config.json` | REST API endpoints and auth |
+| GUI config | `.minecraft/archivist/gui_config.json` | Window positions, active theme |
+| Glossary | `.minecraft/config/archivist-glossary.json` | Command → plugin name mappings |
+| Exceptions | `.minecraft/config/archivist-exceptions.json` | Proxy/hub server list |
+| Fingerprints | bundled resource | GUI signature patterns |
+| Custom themes | `.minecraft/archivist/themes/*.json` | User-created theme files |
+| Exports | `.minecraft/archivist/exports/` | Exported JSON/CSV files |
 
 ---
 
@@ -149,9 +119,7 @@ The glossary ships with ~90 common aliases pre-loaded.
 
 | Component | Version |
 |-----------|---------|
-| Minecraft | 1.21.11 |
-| Fabric Loader | 0.16.10 or later |
-| Fabric API | 0.141.3+1.21.11 or later |
-
----
-Image credits to: sunriseking on https://unsplash.com (https://unsplash.com/photos/city-skyline-during-night-time-ZM6RUTERdBg)
+| Minecraft | 1.21.1 – 1.21.11 |
+| Fabric Loader | 0.16.10+ |
+| Fabric API | Required |
+| Java | 21+ |
