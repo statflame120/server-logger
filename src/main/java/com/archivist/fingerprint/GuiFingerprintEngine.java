@@ -8,6 +8,12 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 
+import com.archivist.util.ArchivistExecutor;
+import com.google.gson.*;
+import net.fabricmc.loader.api.FabricLoader;
+
+import java.nio.file.*;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -79,13 +85,6 @@ public class GuiFingerprintEngine {
         pendingSyncId = -1;
     }
 
-    // Called from mixin for individual slot updates
-    // We only process bulk inventory contents, so individual slot updates
-    // just refresh the last capture if it matches the syncId
-    public void onSlotUpdate(int syncId, int slot, ItemStack stack) {
-        // For simplicity, the primary matching happens on bulk inventory.
-        // Individual slot updates are used for inspector refresh only.
-    }
 
     private void processCapture(GuiCapture capture) {
         ensureLoaded();
@@ -154,6 +153,54 @@ public class GuiFingerprintEngine {
     public boolean isInspectorEnabled() { return inspectorEnabled; }
     public void setInspectorEnabled(boolean enabled) { inspectorEnabled = enabled; }
     public GuiCapture getLastInspectorCapture() { return lastInspectorCapture; }
+
+    /** Save a GUI capture to disk as JSON for later replay/analysis. */
+    public void saveCapture(GuiCapture capture) {
+        ArchivistExecutor.run(() -> {
+            try {
+                Path dir = FabricLoader.getInstance().getGameDir().resolve("archivist").resolve("captures");
+                Files.createDirectories(dir);
+
+                String safeName = capture.title.replaceAll("[^a-zA-Z0-9._\\- ]", "").trim();
+                if (safeName.isEmpty()) safeName = "capture";
+                String timestamp = Instant.now().toString().replace(":", "-").substring(0, 19);
+                Path file = dir.resolve(timestamp + "_" + safeName + ".json");
+
+                JsonObject root = new JsonObject();
+                root.addProperty("timestamp", Instant.now().toString());
+                root.addProperty("containerType", capture.containerType);
+                root.addProperty("title", capture.title);
+                root.addProperty("titleRaw", capture.titleRaw);
+
+                JsonArray items = new JsonArray();
+                for (GuiItemData item : capture.items) {
+                    JsonObject obj = new JsonObject();
+                    obj.addProperty("slot", item.slot());
+                    obj.addProperty("materialId", item.materialId());
+                    obj.addProperty("displayName", item.displayName());
+                    obj.addProperty("displayNameRaw", item.displayNameRaw());
+                    JsonArray lore = new JsonArray();
+                    for (String line : item.lore()) lore.add(line);
+                    obj.add("lore", lore);
+                    JsonArray loreRaw = new JsonArray();
+                    for (String line : item.loreRaw()) loreRaw.add(line);
+                    obj.add("loreRaw", loreRaw);
+                    obj.addProperty("count", item.count());
+                    obj.addProperty("hasEnchantGlint", item.hasEnchantGlint());
+                    items.add(obj);
+                }
+                root.add("items", items);
+
+                Files.writeString(file,
+                        new GsonBuilder().setPrettyPrinting().create().toJson(root),
+                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+
+                EventBus.post(LogEvent.Type.SYSTEM, "Capture saved: " + file.getFileName());
+            } catch (Exception e) {
+                ArchivistMod.LOGGER.warn("[Archivist] Failed to save capture: {}", e.getMessage());
+            }
+        });
+    }
 
     /** Get all GUI-detected plugin names for display in plugin list. */
     public Set<String> getDetectedPluginNames() {

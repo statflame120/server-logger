@@ -61,5 +61,6 @@ public class EventBus {
     /** Full reset: clear events and listeners. */
     public static void reset() {
         events.clear();
+        listeners.clear();
     }
 }

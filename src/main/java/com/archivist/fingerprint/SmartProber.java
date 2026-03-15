@@ -17,7 +17,7 @@ public class SmartProber {
      * Given the server's command tree, returns an ordered list of probe commands
      * that are most likely to reveal plugin GUIs.
      */
-    public static List<String> selectProbeCommands(CommandDispatcher<SharedSuggestionProvider> dispatcher) {
+    public static List<String> selectProbeCommands(CommandDispatcher<?> dispatcher) {
         Set<String> serverCommands = new HashSet<>();
         dispatcher.getRoot().getChildren().forEach(node -> {
             String name = node.getName();
@@ -57,7 +57,7 @@ public class SmartProber {
     /**
      * Returns the number of potential probe targets on this server.
      */
-    public static int countAvailableProbes(CommandDispatcher<SharedSuggestionProvider> dispatcher) {
+    public static int countAvailableProbes(CommandDispatcher<?> dispatcher) {
         return selectProbeCommands(dispatcher).size();
     }
 }

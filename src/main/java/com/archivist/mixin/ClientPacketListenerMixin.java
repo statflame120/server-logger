@@ -63,6 +63,7 @@ public class ClientPacketListenerMixin {
             //String dim = packet.commonPlayerSpawnInfo().dimension().location().toString();
             ArchivistMod.INSTANCE.dataCollector.onDimension(dim);
         } catch (Exception e) {
+            ArchivistMod.LOGGER.warn("[Archivist] Could not read dimension from respawn: {}", e.getMessage());
         }
     }
 

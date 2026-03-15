@@ -1,7 +1,7 @@
 {
   "version": 1,
   "description": "Archivist bundled plugin GUI fingerprint database",
-  "lastUpdated": "2025-03-11",
+  "lastUpdated": "2026-03-14",
   "fingerprints": [
 
     {
@@ -17,7 +17,7 @@
         { "type": "lore_contains", "value": "Seller:" },
         { "type": "container_type", "value": "minecraft:generic_9x6" }
       ],
-      "minMatches": 2
+      "minMatches": 3
     },
 
     {
@@ -48,23 +48,7 @@
         { "type": "lore_contains", "value": "Left-Click to buy" },
         { "type": "lore_contains", "value": "Right-Click to sell" }
       ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "guishop",
-      "pluginName": "GUIShop",
-      "spigotUrl": "https://www.spigotmc.org/resources/guishop.2451/",
-      "category": "economy",
-      "confidence": "medium",
-      "triggeredBy": ["/shop", "/buy"],
-      "matchers": [
-        { "type": "lore_contains", "value": "Worth:" },
-        { "type": "lore_contains", "value": "Click to buy" },
-        { "type": "name_contains", "value": "Next Page" },
-        { "type": "name_contains", "value": "Previous Page" }
-      ],
-      "minMatches": 2
+      "minMatches": 3
     },
 
     {
@@ -80,12 +64,13 @@
         { "type": "lore_contains", "value": "Click to select amount" },
         { "type": "name_contains", "value": "Go back" }
       ],
-      "minMatches": 2
+      "minMatches": 3
     },
 
     {
       "pluginId": "ultimateshop",
       "pluginName": "UltimateShop",
+      "spigotUrl": "https://www.spigotmc.org/resources/ultimateshop-menus-rewards-shop-daily-shop-item-in-1-plugin-1-14-1-21-11.110601/",
       "category": "economy",
       "confidence": "medium",
       "triggeredBy": ["/shop", "/us"],
@@ -94,19 +79,6 @@
         { "type": "lore_contains", "value": "Sell-Price:" },
         { "type": "lore_contains", "value": "Times-bought:" },
         { "type": "lore_contains", "value": "Times-sold:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "essentialsx-enderchest",
-      "pluginName": "EssentialsX (Ender Chest)",
-      "category": "utility",
-      "confidence": "medium",
-      "triggeredBy": ["/ec", "/enderchest"],
-      "matchers": [
-        { "type": "title_contains", "value": "Ender Chest" },
-        { "type": "container_type", "value": "minecraft:generic_9x3" }
       ],
       "minMatches": 2
     },
@@ -126,348 +98,51 @@
     },
 
     {
-      "pluginId": "crazycrates",
-      "pluginName": "CrazyCrates",
-      "spigotUrl": "https://www.spigotmc.org/resources/crazycrates.17599/",
-      "category": "crates",
-      "confidence": "high",
-      "triggeredBy": ["/crates", "/crate"],
-      "matchers": [
-        { "type": "title_contains", "value": "Crate" },
-        { "type": "lore_contains", "value": "Chance:" },
-        { "type": "name_contains", "value": "Preview" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "excellentcrates",
-      "pluginName": "ExcellentCrates",
-      "category": "crates",
-      "confidence": "high",
-      "triggeredBy": ["/crates"],
-      "matchers": [
-        { "type": "title_contains", "value": "Crate" },
-        { "type": "lore_contains", "value": "Winnings:" },
-        { "type": "lore_regex", "value": "Chance: \\d+\\.?\\d*%" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "deluxemenus",
-      "pluginName": "DeluxeMenus",
-      "spigotUrl": "https://www.spigotmc.org/resources/deluxemenus.11734/",
-      "category": "menu",
-      "confidence": "low",
-      "triggeredBy": ["/menu", "/gui"],
-      "matchers": [
-        { "type": "has_material", "value": "minecraft:player_head" },
-        { "type": "container_type", "value": "minecraft:generic_9x3" }
-      ],
-      "minMatches": 2,
-      "notes": "DeluxeMenus is very generic — low confidence unless combined with other signals"
-    },
-
-    {
-      "pluginId": "essentialsx-kit",
-      "pluginName": "EssentialsX (Kits)",
-      "category": "utility",
-      "confidence": "medium",
-      "triggeredBy": ["/kit", "/kits"],
-      "matchers": [
-        { "type": "title_contains", "value": "Kit" },
-        { "type": "lore_contains", "value": "Cooldown:" },
-        { "type": "lore_contains", "value": "Click to select" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "essentialsx-warp",
-      "pluginName": "EssentialsX (Warps)",
-      "category": "utility",
-      "confidence": "medium",
-      "triggeredBy": ["/warps", "/warp"],
-      "matchers": [
-        { "type": "title_contains", "value": "Warp" },
-        { "type": "lore_contains", "value": "Click to teleport" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "rankup",
-      "pluginName": "Rankup",
-      "spigotUrl": "https://www.spigotmc.org/resources/rankup.17933/",
-      "category": "ranks",
-      "confidence": "high",
-      "triggeredBy": ["/rankup", "/ranks"],
-      "matchers": [
-        { "type": "title_contains", "value": "Rankup" },
-        { "type": "lore_contains", "value": "Current Rank:" },
-        { "type": "lore_contains", "value": "Next Rank:" },
-        { "type": "lore_contains", "value": "Cost:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "tokenmanager",
-      "pluginName": "TokenManager",
-      "spigotUrl": "https://www.spigotmc.org/resources/tokenmanager.8610/",
+      "pluginId": "donutorders",
+      "pluginName": "DonutOrders",
+      "spigotUrl": "https://www.spigotmc.org/resources/donutorders.129913/",
       "category": "economy",
       "confidence": "high",
-      "triggeredBy": ["/tokenshop", "/tokens"],
+      "triggeredBy": ["/orders"],
       "matchers": [
-        { "type": "title_contains", "value": "Token Shop" },
-        { "type": "lore_contains", "value": "Cost:" },
-        { "type": "lore_regex", "value": "\\d+ [Tt]okens?" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "cosmetics-gadgetsmenu",
-      "pluginName": "GadgetsMenu",
-      "category": "cosmetics",
-      "confidence": "high",
-      "triggeredBy": ["/cosmetics", "/gadgets"],
-      "matchers": [
-        { "type": "title_contains", "value": "Cosmetics" },
-        { "type": "lore_contains", "value": "Rarity:" },
-        { "type": "lore_contains", "value": "Click to equip" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "luckperms-editor",
-      "pluginName": "LuckPerms (Editor GUI)",
-      "category": "permissions",
-      "confidence": "high",
-      "triggeredBy": [],
-      "matchers": [
-        { "type": "title_contains", "value": "LuckPerms" },
-        { "type": "lore_contains", "value": "Permission:" },
-        { "type": "lore_contains", "value": "Value:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "chestshop",
-      "pluginName": "ChestShop",
-      "spigotUrl": "https://www.spigotmc.org/resources/chestshop.51856/",
-      "category": "economy",
-      "confidence": "medium",
-      "triggeredBy": [],
-      "matchers": [
-        { "type": "title_contains", "value": "Shop" },
-        { "type": "lore_contains", "value": "In stock:" },
-        { "type": "lore_contains", "value": "B " },
-        { "type": "lore_contains", "value": "S " }
+        { "type": "title_contains", "value": "Orders" },
+        { "type": "lore_contains", "value": "Price per item" },
+        { "type": "name_contains", "value": "Your Orders" },
+        { "type": "name_contains", "value": "New Order" }
       ],
       "minMatches": 3
     },
 
     {
-      "pluginId": "advancedenchantments",
-      "pluginName": "AdvancedEnchantments",
-      "category": "enchanting",
-      "confidence": "high",
-      "triggeredBy": ["/ae", "/enchanter", "/ce", "/customenchants"],
-      "matchers": [
-        { "type": "title_contains", "value": "Enchanter" },
-        { "type": "lore_contains", "value": "Drag & Drop" },
-        { "type": "lore_regex", "value": "Success Rate: \\d+%" },
-        { "type": "lore_contains", "value": "Destroy Rate:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "excellentenchants",
-      "pluginName": "ExcellentEnchants",
-      "category": "enchanting",
-      "confidence": "medium",
-      "triggeredBy": ["/eenchants"],
-      "matchers": [
-        { "type": "title_contains", "value": "Enchantments" },
-        { "type": "lore_regex", "value": "Level: \\d+/\\d+" },
-        { "type": "lore_contains", "value": "Chance:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "sellgui",
-      "pluginName": "SellGUI / QuickSell",
-      "category": "economy",
-      "confidence": "medium",
-      "triggeredBy": ["/sellgui", "/sell"],
-      "matchers": [
-        { "type": "title_contains", "value": "Sell" },
-        { "type": "lore_contains", "value": "Sell all" },
-        { "type": "name_contains", "value": "Confirm" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "voteparty-voteresult",
-      "pluginName": "VoteParty / SuperbVote",
-      "category": "voting",
-      "confidence": "medium",
-      "triggeredBy": ["/vote"],
-      "matchers": [
-        { "type": "title_contains", "value": "Vote" },
-        { "type": "lore_contains", "value": "Click to vote" },
-        { "type": "has_material", "value": "minecraft:emerald" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "headdb",
-      "pluginName": "HeadDatabase",
-      "spigotUrl": "https://www.spigotmc.org/resources/head-database.14280/",
-      "category": "utility",
-      "confidence": "high",
-      "triggeredBy": ["/hdb", "/headdb", "/heads"],
-      "matchers": [
-        { "type": "title_contains", "value": "Head Database" },
-        { "type": "has_material", "value": "minecraft:player_head" },
-        { "type": "name_contains", "value": "Search" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "citizens-npc",
-      "pluginName": "Citizens (NPC Menu)",
-      "category": "npc",
-      "confidence": "low",
-      "triggeredBy": [],
-      "matchers": [
-        { "type": "title_contains", "value": "NPC" },
-        { "type": "has_material", "value": "minecraft:player_head" }
-      ],
-      "minMatches": 2,
-      "notes": "Very generic pattern — only low confidence"
-    },
-
-    {
-      "pluginId": "mcmmo",
-      "pluginName": "mcMMO (Skills GUI)",
-      "category": "rpg",
-      "confidence": "high",
-      "triggeredBy": ["/mcmmo", "/mcstats"],
-      "matchers": [
-        { "type": "title_contains", "value": "mcMMO" },
-        { "type": "lore_contains", "value": "XP GAIN:" },
-        { "type": "lore_contains", "value": "Level:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "jobs-reborn",
-      "pluginName": "Jobs Reborn",
+      "pluginId": "xorders",
+      "pluginName": "xOrders",
+      "spigotUrl": "https://www.spigotmc.org/resources/xorders-minecraft-order-delivery-management-plugin.125047/",
       "category": "economy",
       "confidence": "high",
-      "triggeredBy": ["/jobs", "/jobs browse"],
+      "triggeredBy": ["/orders"],
       "matchers": [
-        { "type": "title_contains", "value": "Jobs" },
-        { "type": "lore_contains", "value": "Max Level:" },
-        { "type": "lore_contains", "value": "Income:" },
-        { "type": "lore_contains", "value": "Experience:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "grief-prevention-trust",
-      "pluginName": "GriefPrevention (Trust GUI)",
-      "category": "protection",
-      "confidence": "medium",
-      "triggeredBy": [],
-      "matchers": [
-        { "type": "title_contains", "value": "Claim" },
-        { "type": "lore_contains", "value": "Trust Level:" },
-        { "type": "lore_contains", "value": "Claim blocks:" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "plots-plotsquared",
-      "pluginName": "PlotSquared (Plot Menu)",
-      "category": "creative",
-      "confidence": "high",
-      "triggeredBy": ["/plot", "/plots"],
-      "matchers": [
-        { "type": "title_contains", "value": "Plot" },
-        { "type": "lore_contains", "value": "Owner:" },
-        { "type": "lore_contains", "value": "Members:" },
-        { "type": "lore_contains", "value": "Biome:" }
+        { "type": "title_contains", "value": "Orders" },
+        { "type": "lore_contains", "value": "Deliver" },
+        { "type": "lore_contains", "value": "Price:" },
+        { "type": "name_contains", "value": "Create Order" }
       ],
       "minMatches": 3
     },
 
     {
-      "pluginId": "backpack-betterbackpacks",
-      "pluginName": "BetterBackpacks / Backpack Plugin",
-      "category": "utility",
-      "confidence": "medium",
-      "triggeredBy": ["/backpack", "/bp"],
+      "pluginId": "eternalorders",
+      "pluginName": "EternalOrders",
+      "spigotUrl": "https://www.spigotmc.org/resources/eternalorders-donutsmp-order-replica.129395/",
+      "category": "economy",
+      "confidence": "high",
+      "triggeredBy": ["/eo", "/eternalorders"],
       "matchers": [
-        { "type": "title_contains", "value": "Backpack" },
-        { "type": "container_type", "value": "minecraft:generic_9x3" }
+        { "type": "title_contains", "value": "Orders" },
+        { "type": "lore_contains", "value": "Price per item" },
+        { "type": "name_contains", "value": "Deliver" }
       ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "chatcolor-gui",
-      "pluginName": "ChatColor / Tags Plugin",
-      "category": "chat",
-      "confidence": "medium",
-      "triggeredBy": ["/tags", "/tag", "/prefix", "/chatcolor"],
-      "matchers": [
-        { "type": "title_regex", "value": ".*(Tag|Prefix|ChatColor).*" },
-        { "type": "lore_contains", "value": "Click to select" },
-        { "type": "lore_contains", "value": "Currently selected" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "trails-cosmetics",
-      "pluginName": "Trails / Particle Plugin",
-      "category": "cosmetics",
-      "confidence": "medium",
-      "triggeredBy": ["/trails", "/particles"],
-      "matchers": [
-        { "type": "title_regex", "value": ".*(Trail|Particle).*" },
-        { "type": "lore_contains", "value": "Click to equip" },
-        { "type": "lore_contains", "value": "Click to remove" }
-      ],
-      "minMatches": 2
-    },
-
-    {
-      "pluginId": "pets-plugin",
-      "pluginName": "Pets Plugin",
-      "category": "cosmetics",
-      "confidence": "medium",
-      "triggeredBy": ["/pets", "/pet"],
-      "matchers": [
-        { "type": "title_contains", "value": "Pet" },
-        { "type": "lore_contains", "value": "Level:" },
-        { "type": "lore_contains", "value": "Click to spawn" }
-      ],
-      "minMatches": 2
+      "minMatches": 3
     }
+
   ]
 }

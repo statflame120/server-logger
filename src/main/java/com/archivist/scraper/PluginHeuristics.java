@@ -1,5 +1,8 @@
 package com.archivist.scraper;
 
+import com.google.gson.*;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.function.Predicate;
 
@@ -20,93 +23,33 @@ public final class PluginHeuristics {
     private static final List<HeuristicRule> RULES = new ArrayList<>();
 
     static {
-        // ── Auction House plugins ───────────────────────────────────────────
-        nameRule("AuctionHouse", "auction house");
-        nameRule("AuctionHouse", "auction");
-        loreRule("AuctionHouse", "click to bid");
-        loreRule("AuctionHouse", "buy it now");
-        loreRule("AuctionHouse", "browse auctions");
-
-        // ── Shop plugins ────────────────────────────────────────────────────
-        nameRule("ShopGUIPlus", "shop");
-        loreRule("ShopGUIPlus", "click to purchase");
-        loreRule("ShopGUIPlus", "click to buy");
-        loreRule("ShopGUIPlus", "price:");
-        loreRule("EconomyShopGUI", "economy shop");
-
-        // ── Ender Chest / Virtual storage ───────────────────────────────────
-        nameRule("EnderChest", "ender chest");
-        nameRule("EnderChest", "virtual chest");
-
-        // ── Crate plugins ───────────────────────────────────────────────────
-        nameRule("CrazyCrates", "crazy crate");
-        nameRule("CrazyCrates", "crate key");
-        loreRule("CrazyCrates", "right-click to open");
-        nameRule("ExcellentCrates", "crate");
-        loreRule("ExcellentCrates", "crate reward");
-
-        // ── Menu / GUI plugins ──────────────────────────────────────────────
-        nameRule("DeluxeMenus", "main menu");
-        nameRule("DeluxeMenus", "server menu");
-        nameRule("ChestCommands", "gui menu");
-
-        // ── Economy / Sell ──────────────────────────────────────────────────
-        nameRule("SellGUI", "sell");
-        loreRule("SellGUI", "sell all");
-        loreRule("SellGUI", "click to sell");
-        nameRule("EssentialsX", "worth");
-
-        // ── Player Warps ────────────────────────────────────────────────────
-        nameRule("PlayerWarps", "player warp");
-        loreRule("PlayerWarps", "warp to");
-
-        // ── Jobs ────────────────────────────────────────────────────────────
-        nameRule("JobsReborn", "jobs");
-        loreRule("JobsReborn", "join this job");
-        loreRule("JobsReborn", "job level");
-
-        // ── McMMO ───────────────────────────────────────────────────────────
-        nameRule("McMMO", "mcmmo");
-        loreRule("McMMO", "skill level");
-
-        // ── Quests ──────────────────────────────────────────────────────────
-        nameRule("Quests", "quest");
-        loreRule("Quests", "quest progress");
-        loreRule("Quests", "objectives");
-
-        // ── Cosmetics ───────────────────────────────────────────────────────
-        nameRule("ProCosmetics", "cosmetic");
-        loreRule("ProCosmetics", "unlock cosmetic");
-
-        // ── Kits ────────────────────────────────────────────────────────────
-        nameRule("PlayerKits", "kit");
-        loreRule("PlayerKits", "click to claim");
-        loreRule("PlayerKits", "cooldown:");
-
-        // ── Spawner plugins ─────────────────────────────────────────────────
-        nameRule("EpicSpawners", "spawner");
-        loreRule("SmartSpawners", "spawner level");
-
-        // ── SkyBlock ────────────────────────────────────────────────────────
-        nameRule("SuperiorSkyblock", "island");
-        loreRule("SuperiorSkyblock", "island level");
-        loreRule("BentoBox", "island settings");
-
-        // ── GriefPrevention / Claims ────────────────────────────────────────
-        loreRule("GriefPrevention", "claim blocks");
-        loreRule("Lands", "land claim");
-
-        // ── Voting ──────────────────────────────────────────────────────────
-        nameRule("VotingPlugin", "vote");
-        loreRule("VotingPlugin", "vote reward");
-
-        // ── Daily Rewards ───────────────────────────────────────────────────
-        nameRule("DailyRewards", "daily reward");
-        loreRule("DailyRewards", "claim your reward");
-
-        // ── NBT-based heuristics (generic) ──────────────────────────────────
+        loadRules();
+        // NBT-based heuristic — must stay in Java (lambda predicate)
         RULES.add(new HeuristicRule("CustomModelData-Plugin",
                 item -> item.customModelData != null && item.customModelData > 1000));
+    }
+
+    private static void loadRules() {
+        try (InputStream is = PluginHeuristics.class.getResourceAsStream("/assets/archivist/heuristics.json")) {
+            if (is == null) return;
+            JsonObject root = JsonParser.parseReader(new InputStreamReader(is)).getAsJsonObject();
+            for (Map.Entry<String, JsonElement> entry : root.entrySet()) {
+                String pluginId = entry.getKey();
+                JsonObject obj = entry.getValue().getAsJsonObject();
+                if (obj.has("name")) {
+                    for (JsonElement e : obj.getAsJsonArray("name")) {
+                        nameRule(pluginId, e.getAsString());
+                    }
+                }
+                if (obj.has("lore")) {
+                    for (JsonElement e : obj.getAsJsonArray("lore")) {
+                        loreRule(pluginId, e.getAsString());
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Defensive: never let bad JSON crash the mod
+        }
     }
 
     /** Add a rule that matches on display name substring. */

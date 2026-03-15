@@ -28,6 +28,8 @@ public class ClientCommonListenerMixin {
             } else {
                 // Log custom packets for the connection log
                 EventBus.post(LogEvent.Type.PACKET, "Custom packet: " + packet.payload().type().id());
+                ArchivistMod.INSTANCE.pluginScanner.onChannelNamespace(
+                        packet.payload().type().id().getNamespace());
             }
         } catch (Exception ignored) {}
     }

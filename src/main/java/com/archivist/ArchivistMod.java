@@ -11,6 +11,7 @@ import com.archivist.data.EventBus;
 import com.archivist.data.LogEvent;
 import com.archivist.fingerprint.AutoProbeSystem;
 import com.archivist.fingerprint.GuiFingerprintEngine;
+import com.archivist.gui.ScanProgressOverlay;
 import com.archivist.scraper.GuiScraper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -21,6 +22,7 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +75,9 @@ public class ArchivistMod implements ClientModInitializer {
         ));
         *///?}
 
+        // HUD overlay for scan progress
+        HudRenderCallback.EVENT.register((g, ignored) -> ScanProgressOverlay.getInstance().render(g));
+
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             EventBus.reset();
             EventBus.post(LogEvent.Type.SYSTEM, "Archivist active");
@@ -81,6 +86,9 @@ public class ArchivistMod implements ClientModInitializer {
             EventBus.post(LogEvent.Type.CONNECT, "Connected to " + dataCollector.domain
                     + " (" + dataCollector.ip + ":" + dataCollector.port + ")");
             apiSyncManager.onServerJoin(dataCollector);
+
+            // Start scan progress overlay
+            ScanProgressOverlay.getInstance().startScan(ScanProgressOverlay.estimateTotalTicks(handler.getCommands()));
 
             // Auto-scrape on join if enabled (delay 5 seconds = 100 ticks)
             if (extendedConfig.autoScrapeOnJoin && !guiScraper.isActive()) {
@@ -99,17 +107,16 @@ public class ArchivistMod implements ClientModInitializer {
             guiScraper.reset();
             GuiFingerprintEngine.getInstance().reset();
             AutoProbeSystem.getInstance().reset();
+            ScanProgressOverlay.getInstance().reset();
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Early exit: don't run tick logic on title/multiplayer screens
-            if (client.level == null || client.getConnection() == null) {
-                // Still allow keybind handling below
-            } else {
+            if (client.level != null && client.getConnection() != null) {
                 pluginScanner.tick(client);
                 dataCollector.tick(client);
                 guiScraper.tick();
                 AutoProbeSystem.getInstance().tick();
+                ScanProgressOverlay.getInstance().tick();
             }
 
             if (openGuiKey.consumeClick()) {

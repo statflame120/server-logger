@@ -1,0 +1,187 @@
+{
+  "AuctionHouse": {
+    "name": ["auctionhouse", "auction house"],
+    "lore": ["click to bid", "buy it now", "browse auctions", "click to purchase!", "seller:"]
+  },
+  "AzAuctionHouse": {
+    "name": ["azauctionhouse"],
+    "lore": ["expires in:"]
+  },
+  "CrazyAuctions": {
+    "name": ["crazyauctions", "crazy auctions"]
+  },
+  "ShopGUI+": {
+    "name": ["shopguiplus", "shopgui+", "shopgui"],
+    "lore": ["buy price:", "sell price:", "left-click to buy", "right-click to sell", "click to select amount"]
+  },
+  "EconomyShopGUI": {
+    "name": ["economyshopgui", "economy shop"],
+    "lore": ["left-click to buy", "right-click to sell"]
+  },
+  "UltimateShop": {
+    "name": ["ultimateshop", "ultimate shop"],
+    "lore": ["buy-price:", "sell-price:", "times-bought:"]
+  },
+  "GUIShop": {
+    "name": ["guishop"]
+  },
+  "ChestShop": {
+    "name": ["chestshop"]
+  },
+  "SellGUI": {
+    "name": ["sellgui"],
+    "lore": ["sell all items", "click to sell all"]
+  },
+  "QuickSell": {
+    "name": ["quicksell", "quick sell"]
+  },
+  "CrazyCrates": {
+    "name": ["crazycrates", "crazy crates", "crazy crate"],
+    "lore": ["keys to open", "right click to view rewards", "chance:"]
+  },
+  "ExcellentCrates": {
+    "name": ["excellentcrates", "excellent crates"],
+    "lore": ["crate reward"]
+  },
+  "SpecializedCrates": {
+    "name": ["specializedcrates"]
+  },
+  "TokenManager": {
+    "name": ["tokenmanager", "token manager", "token shop"],
+    "lore": ["tokens:", "token balance"]
+  },
+  "EnderChest": {
+    "name": ["ender chest", "virtual chest"]
+  },
+  "PlayerVaults": {
+    "name": ["playervaults", "player vault"]
+  },
+  "BetterBackpacks": {
+    "name": ["betterbackpacks"]
+  },
+  "DeluxeMenus": {
+    "name": ["deluxemenus", "deluxe menus"]
+  },
+  "ChestCommands": {
+    "name": ["chestcommands", "chest commands"]
+  },
+  "PlayerWarps": {
+    "name": ["playerwarps", "player warps", "player warp"],
+    "lore": ["warp owner:", "visits:"]
+  },
+  "Jobs Reborn": {
+    "name": ["jobsreborn", "jobs reborn"],
+    "lore": ["join this job", "job level", "max level:"]
+  },
+  "mcMMO": {
+    "name": ["mcmmo"]
+  },
+  "Quests": {
+    "name": ["beautyquests"],
+    "lore": ["quest progress", "quest objectives"]
+  },
+  "BetonQuest": {
+    "name": ["betonquest"]
+  },
+  "ProCosmetics": {
+    "name": ["procosmetics", "pro cosmetics"],
+    "lore": ["unlock cosmetic"]
+  },
+  "PlayerParticles": {
+    "name": ["playerparticles"]
+  },
+  "PlayerKits": {
+    "name": ["playerkits", "player kits"]
+  },
+  "EpicSpawners": {
+    "name": ["epicspawners", "epic spawners"],
+    "lore": ["spawner boost", "spawner upgrade"]
+  },
+  "SmartSpawners": {
+    "name": ["smartspawners"],
+    "lore": ["spawner level"]
+  },
+  "WildStacker": {
+    "name": ["wildstacker"]
+  },
+  "SuperiorSkyblock": {
+    "name": ["superiorskyblock", "superior skyblock", "island panel"],
+    "lore": ["island level", "island members", "teleport back to your island"]
+  },
+  "BentoBox": {
+    "name": ["bentobox", "bskyblock", "acidisland", "aoneblock"],
+    "lore": ["island settings"]
+  },
+  "IridiumSkyblock": {
+    "name": ["iridiumskyblock"]
+  },
+  "FabledSkyblock": {
+    "name": ["fabledskyblock"]
+  },
+  "GriefPrevention": {
+    "name": ["griefprevention"],
+    "lore": ["claim blocks"]
+  },
+  "GriefDefender": {
+    "name": ["griefdefender"]
+  },
+  "Lands": {
+    "lore": ["land claim"]
+  },
+  "Towny": {
+    "name": ["towny", "town menu"],
+    "lore": ["residents:", "mayor:", "town bank"]
+  },
+  "PlotSquared": {
+    "name": ["plotsquared", "plot squared"]
+  },
+  "Factions": {
+    "name": ["factions"],
+    "lore": ["faction power"]
+  },
+  "VotingPlugin": {
+    "name": ["votingplugin", "voting plugin"],
+    "lore": ["vote reward", "vote streak"]
+  },
+  "SuperbVote": {
+    "name": ["superbvote"]
+  },
+  "DailyRewards": {
+    "name": ["dailyrewards", "daily rewards", "daily reward"],
+    "lore": ["claim your reward", "day streak"]
+  },
+  "EssentialsX": {
+    "name": ["essentialsx", "essentials"]
+  },
+  "CMI": {
+    "name": ["cmi"]
+  },
+  "Citizens": {
+    "name": ["citizens"]
+  },
+  "MythicMobs": {
+    "name": ["mythicmobs", "mythic mobs"]
+  },
+  "AdvancedEnchantments": {
+    "name": ["advancedenchantments", "advanced enchantments"],
+    "lore": ["success rate:", "destroy rate:"]
+  },
+  "ExcellentEnchants": {
+    "name": ["excellentenchants"]
+  },
+  "HeadDatabase": {
+    "name": ["headdatabase", "head database"]
+  },
+  "LuckPerms": {
+    "name": ["luckperms"]
+  },
+  "DonutOrders": {
+    "name": ["donutorders", "donut orders"]
+  },
+  "xOrders": {
+    "name": ["xorders"]
+  },
+  "EternalOrders": {
+    "name": ["eternalorders", "eternal orders"]
+  }
+}

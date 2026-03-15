@@ -8,17 +8,28 @@ import net.minecraft.network.protocol.game.ClientboundCommandSuggestionsPacket;
 import net.minecraft.network.protocol.game.ServerboundCommandSuggestionPacket;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PluginScanner {
 
     private final List<String> commandTreePlugins = new ArrayList<>();
     private final List<String> tabCompletePlugins = new ArrayList<>();
+    private final List<String> channelPlugins     = new ArrayList<>();
+    private final List<String> registryPlugins    = new ArrayList<>();
+
+    private final Set<String> pendingChannelNamespaces  = ConcurrentHashMap.newKeySet();
+    private final Set<String> pendingRegistryNamespaces = ConcurrentHashMap.newKeySet();
 
     private boolean active                = false;
     private boolean commandTreeProcessed = false;
+    private boolean scanFinished         = false;
     private int     ticks                = 0;
     private int     suggestionId         = -1;
     private String  versionAlias         = null;
+
+    private static final Set<String> IGNORED_NAMESPACES = Set.of(
+            "minecraft", "fabric", "fabric-api", "fabricloader", "java", "c"
+    );
 
     private static final Set<String> VERSION_ALIASES = Set.of(
             "version", "ver", "about",
@@ -27,16 +38,57 @@ public class PluginScanner {
 
     public void onServerJoin(Minecraft client) {
         reset();
+
+        // Transfer pending namespaces collected during config phase
+        for (String ns : pendingChannelNamespaces) {
+            resolveAndAdd(ns, channelPlugins, false);
+        }
+        for (String ns : pendingRegistryNamespaces) {
+            resolveAndAdd(ns, registryPlugins, true);
+        }
+        pendingChannelNamespaces.clear();
+        pendingRegistryNamespaces.clear();
+        scanFinished = true;
     }
 
     public void reset() {
         active                = false;
         commandTreeProcessed  = false;
+        scanFinished          = false;
         ticks                 = 0;
         suggestionId          = -1;
         versionAlias          = null;
         commandTreePlugins.clear();
         tabCompletePlugins.clear();
+        channelPlugins.clear();
+        registryPlugins.clear();
+        pendingChannelNamespaces.clear();
+        pendingRegistryNamespaces.clear();
+    }
+
+    public void onChannelNamespace(String ns) {
+        if (ns == null || IGNORED_NAMESPACES.contains(ns)) return;
+        if (scanFinished) {
+            resolveAndAdd(ns, channelPlugins, false);
+        } else {
+            pendingChannelNamespaces.add(ns);
+        }
+    }
+
+    public void onRegistryNamespace(String ns) {
+        if (ns == null || IGNORED_NAMESPACES.contains(ns)) return;
+        pendingRegistryNamespaces.add(ns);
+    }
+
+    private void resolveAndAdd(String ns, List<String> target, boolean glossaryOnly) {
+        PluginGlossary dict = (ArchivistMod.INSTANCE != null)
+                ? ArchivistMod.INSTANCE.pluginGlossary : null;
+        String resolved = (dict != null) ? dict.lookup(ns) : null;
+        if (resolved == null && glossaryOnly) return;
+        String toAdd = (resolved != null) ? resolved : ns;
+        if (!target.contains(toAdd)) {
+            target.add(toAdd);
+        }
     }
 
     public void onCommandTree(CommandDispatcher<SharedSuggestionProvider> dispatcher) {
@@ -71,7 +123,8 @@ public class PluginScanner {
                 }
             }
 
-            if (versionAlias == null && VERSION_ALIASES.contains(name)) {
+            if (versionAlias == null && VERSION_ALIASES.contains(name)
+                    && commandTreePlugins.size() <= 15) {
                 versionAlias = name;
                 sendTabCompleteProbe(versionAlias);
                 active = true;
@@ -135,6 +188,10 @@ public class PluginScanner {
         Set<String> merged = new LinkedHashSet<>();
         merged.addAll(commandTreePlugins);
         merged.addAll(tabCompletePlugins);
+        merged.addAll(channelPlugins);
+        merged.addAll(registryPlugins);
+
+        scanFinished = true;
 
         if (ArchivistMod.INSTANCE != null) {
             ArchivistMod.INSTANCE.dataCollector.onPluginsDetected(new ArrayList<>(merged));

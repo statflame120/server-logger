@@ -79,41 +79,6 @@ public class LogExporter {
         }
     }
 
-    /** Export world info to file. Runs I/O on background thread. */
-    public static void exportWorldInfo() {
-        if (ArchivistMod.INSTANCE == null) return;
-        ServerDataCollector dc = ArchivistMod.INSTANCE.dataCollector;
-
-        // Snapshot mutable state on calling thread
-        String domain = dc.domain;
-        String ip = dc.ip;
-        int port = dc.port;
-        String dimension = dc.dimension;
-        String resourcePack = dc.resourcePack;
-
-        ArchivistExecutor.run(() -> {
-            try {
-                JsonObject root = new JsonObject();
-                root.addProperty("exportedAt", Instant.now().toString());
-                root.addProperty("domain", domain);
-                root.addProperty("ip", ip);
-                root.addProperty("port", port);
-                root.addProperty("dimension", dimension);
-                if (resourcePack != null) root.addProperty("resourcePack", resourcePack);
-
-                String json = new GsonBuilder().setPrettyPrinting().create().toJson(root);
-                Path dir = LogStorage.getExportDir();
-                String fileName = "worldinfo_" + timestamp() + ".json";
-                Path outFile = dir.resolve(fileName);
-                Files.writeString(outFile, json, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                EventBus.post(LogEvent.Type.SYSTEM, "Exported: " + outFile.toAbsolutePath());
-            } catch (Exception e) {
-                ArchivistMod.LOGGER.warn("[Archivist] World info export failed: {}", e.getMessage());
-                EventBus.post(LogEvent.Type.ERROR, "World info export failed");
-            }
-        });
-    }
-
     /** Export a server log entry to file. Runs I/O on background thread. */
     public static void exportServerLog(ServerLogData log) {
         // Snapshot all data from the log (it's already immutable final fields)
@@ -187,6 +152,23 @@ public class LogExporter {
         server.addProperty("dimension", dc.dimension);
         server.addProperty("playerCount", dc.playerCount);
         root.add("server", server);
+
+        JsonObject world = new JsonObject();
+        world.addProperty("dimension", dc.dimension);
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.level != null) {
+            world.addProperty("difficulty", mc.level.getDifficulty().name());
+            world.addProperty("dayTime", mc.level.getDayTime() % 24000);
+            world.addProperty("raining", mc.level.isRaining());
+            world.addProperty("borderSize", mc.level.getWorldBorder().getSize());
+        }
+        if (mc.gameMode != null) {
+            world.addProperty("gamemode", mc.gameMode.getPlayerMode().name());
+        }
+        if (dc.resourcePack != null) {
+            world.addProperty("resourcePack", dc.resourcePack);
+        }
+        root.add("world", world);
 
         JsonArray plugins = new JsonArray();
         dc.getPlugins().forEach(plugins::add);

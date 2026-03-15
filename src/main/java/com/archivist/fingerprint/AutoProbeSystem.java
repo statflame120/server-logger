@@ -38,8 +38,6 @@ public class AutoProbeSystem {
     // Delay before starting
     private int startDelayTicks = 0;
 
-    // Server-specific cooldown: track which servers we've probed this session
-    private final Set<String> probedServers = new HashSet<>();
 
     public static AutoProbeSystem getInstance() {
         if (instance == null) instance = new AutoProbeSystem();
@@ -53,13 +51,6 @@ public class AutoProbeSystem {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) return;
-
-        // Server-specific cooldown
-        String serverKey = getServerKey();
-        if (serverKey != null && probedServers.contains(serverKey)) {
-            EventBus.post(LogEvent.Type.SYSTEM, "[PROBE] Already probed this server this session");
-            return;
-        }
 
         probeCommands.clear();
         probeCommands.addAll(commands);
@@ -132,7 +123,6 @@ public class AutoProbeSystem {
         currentCommandIndex = 0;
         awaitingCapture = false;
         probeSyncId = -1;
-        // Don't clear probedServers — it's session-wide
     }
 
     private void sendNextCommand(Minecraft mc) {
@@ -185,8 +175,6 @@ public class AutoProbeSystem {
 
         String serverKey = getServerKey();
         if (serverKey != null) {
-            probedServers.add(serverKey);
-            // Cache results
             cacheProbeResults(serverKey);
         }
     }

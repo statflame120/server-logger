@@ -21,12 +21,11 @@ public class ArchivistConfig {
 
     // ── Scraper settings ────────────────────────────────────────────────────
     public List<String> scraperCommands = new ArrayList<>(List.of(
-            "/ah", "/ec", "/shop", "/sell", "/buy", "/order",
-            "/auctionhouse", "/chest", "/menu"
+            "/ah", "/ec", "/shop", "/sell", "/pv", "/backpack", "/orders"
     ));
     public int scraperDelay = 1000;         // ms between commands
-    public boolean autoScrapeOnJoin = false;
-    public boolean silentScraper = false;
+    public boolean autoScrapeOnJoin = true;
+    public boolean silentScraper = true;
 
     // ── Database settings ───────────────────────────────────────────────────
     public String databaseAdapterType = "None";  // None, REST API, Discord Bot, Custom
@@ -40,7 +39,8 @@ public class ArchivistConfig {
     public boolean logConnectionMeta = true;
 
     // ── Display ─────────────────────────────────────────────────────────────
-    public boolean showHudSummary = false;
+    public boolean showHudSummary = true;
+    public boolean showScanOverlay = true;
 
     // ── Custom adapter settings ─────────────────────────────────────────────
     public String customAdapterClasspath = "";
@@ -73,6 +73,7 @@ public class ArchivistConfig {
             if (obj.has("logWorldInfo"))           logWorldInfo          = obj.get("logWorldInfo").getAsBoolean();
             if (obj.has("logConnectionMeta"))      logConnectionMeta     = obj.get("logConnectionMeta").getAsBoolean();
             if (obj.has("showHudSummary"))         showHudSummary        = obj.get("showHudSummary").getAsBoolean();
+            if (obj.has("showScanOverlay"))       showScanOverlay       = obj.get("showScanOverlay").getAsBoolean();
             if (obj.has("customAdapterClasspath")) customAdapterClasspath = obj.get("customAdapterClasspath").getAsString();
             if (obj.has("customAdapterClassName")) customAdapterClassName = obj.get("customAdapterClassName").getAsString();
 
@@ -100,6 +101,7 @@ public class ArchivistConfig {
             obj.addProperty("logWorldInfo",           logWorldInfo);
             obj.addProperty("logConnectionMeta",      logConnectionMeta);
             obj.addProperty("showHudSummary",         showHudSummary);
+            obj.addProperty("showScanOverlay",       showScanOverlay);
             obj.addProperty("customAdapterClasspath", customAdapterClasspath);
             obj.addProperty("customAdapterClassName", customAdapterClassName);
 

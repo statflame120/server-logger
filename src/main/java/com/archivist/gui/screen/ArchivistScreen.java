@@ -9,6 +9,7 @@ import com.archivist.config.GuiConfig;
 import com.archivist.data.EventBus;
 import com.archivist.data.LogEvent;
 import com.archivist.data.LogExporter;
+import com.archivist.JsonLogger;
 import com.archivist.ExceptionResolver;
 import com.archivist.database.ApiConfig;
 import com.archivist.database.ApiSyncManager;
@@ -39,7 +40,7 @@ import java.util.function.Consumer;
  * all rendering and input is forwarded to the custom widget system.
  * No vanilla widgets (addDrawableChild) are used.
  *
- * Creates and manages: Server Info, Plugin List, World Info,
+ * Creates and manages: Server Info, Plugin List,
  * Connection Log, Console, Settings windows, and the Taskbar.
  */
 public class ArchivistScreen extends Screen {
@@ -61,12 +62,12 @@ public class ArchivistScreen extends Screen {
     // Windows
     private DraggableWindow serverInfoWindow;
     private DraggableWindow pluginListWindow;
-    private DraggableWindow worldInfoWindow;
     private DraggableWindow connectionLogWindow;
     private DraggableWindow consoleWindow;
     private DraggableWindow settingsWindow;
     private DraggableWindow inspectorWindow;
     private DraggableWindow serverListWindow;
+    private DraggableWindow manualLogWindow;
 
     // Console state
     private ScrollableList consoleOutput;
@@ -114,9 +115,8 @@ public class ArchivistScreen extends Screen {
         applyTheme(guiConfig.activeTheme);
 
         // ── Create Windows ──────────────────────────────────────────────────
-        serverInfoWindow = createWindow("server_info", "Server Info", 10, 10, 200, 240);
+        serverInfoWindow = createWindow("server_info", "Server Info", 10, 10, 200, 340);
         pluginListWindow = createWindow("plugin_list", "Plugins", 220, 10, 180, 240);
-        worldInfoWindow = createWindow("world_info", "World Info", 410, 10, 190, 200);
         connectionLogWindow = createWindow("connection_log", "Connection Log", 10, 260, 280, 200);
         consoleWindow = createWindow("console", "Console", 300, 260, 300, 200);
         settingsWindow = createWindow("settings", "Settings", 610, 10, 220, 300);
@@ -125,15 +125,17 @@ public class ArchivistScreen extends Screen {
         if (guiConfig.getWindowState("inspector") == null) inspectorWindow.setVisible(false);
         serverListWindow = createWindow("server_list", "Server Logs", 10, 10, 400, 350);
         if (guiConfig.getWindowState("server_list") == null) serverListWindow.setVisible(false);
+        manualLogWindow = createWindow("manual_log", "Manual Log", 410, 320, 220, 160);
+        if (guiConfig.getWindowState("manual_log") == null) manualLogWindow.setVisible(false);
 
         buildServerInfoWindow();
         buildPluginListWindow();
-        buildWorldInfoWindow();
         buildConnectionLogWindow();
         buildConsoleWindow();
         buildSettingsWindow();
         buildInspectorWindow();
         buildServerListWindow();
+        buildManualLogWindow();
 
         // Initial reflow so anchored children get correct positions
         pluginListWindow.reflowChildren();
@@ -142,15 +144,16 @@ public class ArchivistScreen extends Screen {
         settingsWindow.reflowChildren();
         inspectorWindow.reflowChildren();
         serverListWindow.reflowChildren();
+        manualLogWindow.reflowChildren();
 
         windows.add(serverInfoWindow);
         windows.add(pluginListWindow);
-        windows.add(worldInfoWindow);
         windows.add(connectionLogWindow);
         windows.add(consoleWindow);
         windows.add(settingsWindow);
         windows.add(inspectorWindow);
         windows.add(serverListWindow);
+        windows.add(manualLogWindow);
 
         // Stable order for taskbar (never reordered by bringToFront)
         taskbarOrder.clear();
@@ -198,21 +201,51 @@ public class ArchivistScreen extends Screen {
     private void buildServerInfoWindow() {
         serverInfoWindow.clearChildren();
         ServerDataCollector dc = getDataCollector();
+        Minecraft mc = Minecraft.getInstance();
 
+        // ── Connection section ──
+        serverInfoWindow.addChild(new Label(0, 0, 180, "\u2500\u2500 Connection \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", ColorScheme.get().accent()));
         addKV(serverInfoWindow, "IP", dc != null ? dc.ip : "N/A");
         addKV(serverInfoWindow, "Port", dc != null ? String.valueOf(dc.port) : "N/A");
         addKV(serverInfoWindow, "Domain", dc != null ? dc.domain : "N/A");
         addKV(serverInfoWindow, "Version", dc != null ? dc.version : "N/A");
         addKV(serverInfoWindow, "Brand", dc != null ? dc.brand : "N/A");
         addKV(serverInfoWindow, "Players", dc != null ? String.valueOf(dc.playerCount) : "N/A");
+
+        // ── World section ──
+        serverInfoWindow.addChild(new Label(0, 0, 180, ""));
+        serverInfoWindow.addChild(new Label(0, 0, 180, "\u2500\u2500 World \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", ColorScheme.get().accent()));
         addKV(serverInfoWindow, "Dimension", dc != null ? dc.dimension : "N/A");
+
+        if (mc.level != null) {
+            addKV(serverInfoWindow, "Difficulty", mc.level.getDifficulty().name());
+            addKV(serverInfoWindow, "Day Time", String.valueOf(mc.level.getDayTime() % 24000));
+
+            //? if >=1.21.6
+            addKV(serverInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
+            //? if <1.21.6
+            //addKV(serverInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
+
+            try {
+                //? if <1.21.10 {
+                /*var spawnPos = mc.level.getSharedSpawnPos();
+                addKV(serverInfoWindow, "Spawn", spawnPos.getX() + ", " + spawnPos.getY() + ", " + spawnPos.getZ());
+                *///?}
+            } catch (Exception ignored) {}
+
+            var border = mc.level.getWorldBorder();
+            addKV(serverInfoWindow, "Border Size", String.format("%.0f", border.getSize()));
+        }
+
+        if (mc.gameMode != null) {
+            addKV(serverInfoWindow, "Gamemode", mc.gameMode.getPlayerMode().name());
+        }
 
         if (dc != null && dc.resourcePack != null) {
             addKV(serverInfoWindow, "Resource Pack", dc.resourcePack);
         }
 
         // MOTD from server data if available
-        Minecraft mc = Minecraft.getInstance();
         if (mc.getCurrentServer() != null && mc.getCurrentServer().motd != null) {
             serverInfoWindow.addChild(new Label(0, 0, 180, ""));
             serverInfoWindow.addChild(new Label(0, 0, 180, "MOTD:", ColorScheme.get().accent()));
@@ -293,48 +326,6 @@ public class ArchivistScreen extends Screen {
                 pluginList.addItem(p, ColorScheme.get().eventPlugin());
             }
         }
-    }
-
-    private void buildWorldInfoWindow() {
-        worldInfoWindow.clearChildren();
-        ServerDataCollector dc = getDataCollector();
-        Minecraft mc = Minecraft.getInstance();
-
-        addKV(worldInfoWindow, "Dimension", dc != null ? dc.dimension : "N/A");
-
-        if (mc.level != null) {
-            addKV(worldInfoWindow, "Difficulty", mc.level.getDifficulty().name());
-            addKV(worldInfoWindow, "Day Time", String.valueOf(mc.level.getDayTime() % 24000));
-
-            //? if >=1.21.6
-            addKV(worldInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
-            //? if <1.21.6
-            //addKV(worldInfoWindow, "Raining", String.valueOf(mc.level.isRaining()));
-
-            try {
-                //? if <1.21.10 {
-                /*var spawnPos = mc.level.getSharedSpawnPos();
-                addKV(worldInfoWindow, "Spawn", spawnPos.getX() + ", " + spawnPos.getY() + ", " + spawnPos.getZ());
-                *///?}
-            } catch (Exception ignored) {}
-
-            // World border
-            var border = mc.level.getWorldBorder();
-            addKV(worldInfoWindow, "Border Size", String.format("%.0f", border.getSize()));
-        }
-
-        if (mc.gameMode != null) {
-            addKV(worldInfoWindow, "Gamemode", mc.gameMode.getPlayerMode().name());
-        }
-
-        if (dc != null && dc.resourcePack != null) {
-            addKV(worldInfoWindow, "Resource Pack", dc.resourcePack);
-        }
-
-        worldInfoWindow.addChild(new Label(0, 0, 170, ""));
-        worldInfoWindow.addChild(new Button(0, 0, 80, "Export", () -> {
-            LogExporter.exportWorldInfo();
-        }));
     }
 
     private void buildConnectionLogWindow() {
@@ -434,10 +425,10 @@ public class ArchivistScreen extends Screen {
 
         ArchivistConfig cfg = getExtConfig();
         generalTab.addChild(new CheckBox(0, 0, 200, "Auto-scrape on join",
-                cfg != null && cfg.autoScrapeOnJoin,
+                cfg == null || cfg.autoScrapeOnJoin,
                 v -> { if (cfg != null) { cfg.autoScrapeOnJoin = v; cfg.save(); } }));
         generalTab.addChild(new CheckBox(0, 0, 200, "Silent scraper (hide chat)",
-                cfg != null && cfg.silentScraper,
+                cfg == null || cfg.silentScraper,
                 v -> {
                     if (cfg != null) { cfg.silentScraper = v; cfg.save(); }
                     if (ArchivistMod.INSTANCE != null) {
@@ -454,8 +445,11 @@ public class ArchivistScreen extends Screen {
                 cfg == null || cfg.logConnectionMeta,
                 v -> { if (cfg != null) { cfg.logConnectionMeta = v; cfg.save(); } }));
         generalTab.addChild(new CheckBox(0, 0, 200, "Show HUD summary",
-                cfg != null && cfg.showHudSummary,
+                cfg == null || cfg.showHudSummary,
                 v -> { if (cfg != null) { cfg.showHudSummary = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Show scan overlay",
+                cfg == null || cfg.showScanOverlay,
+                v -> { if (cfg != null) { cfg.showScanOverlay = v; cfg.save(); } }));
 
         GuiFingerprintEngine fpEngine = GuiFingerprintEngine.getInstance();
         generalTab.addChild(new CheckBox(0, 0, 200, "GUI Inspector mode",
@@ -907,7 +901,7 @@ public class ArchivistScreen extends Screen {
 
         inspectorList = new ScrollableList(0, 0, 230, 170);
         inspectorList.setAnchor(Widget.Anchor.FILL_ABOVE);
-        inspectorList.setMargins(0, 0, 34, 0); // leave room for buttons
+        inspectorList.setMargins(0, 0, 50, 0); // leave room for buttons
 
         GuiFingerprintEngine engine = GuiFingerprintEngine.getInstance();
         GuiCapture capture = engine.getLastInspectorCapture();
@@ -933,27 +927,29 @@ public class ArchivistScreen extends Screen {
 
         inspectorWindow.addChild(inspectorList);
 
-        Button inspCopyBtn = new Button(0, 0, 100, "Copy All", () -> {
-            GuiCapture cap = engine.getLastInspectorCapture();
-            if (cap == null) return;
-            StringBuilder sb = new StringBuilder();
-            sb.append("Title: ").append(cap.title).append("\n");
-            sb.append("Type: ").append(cap.containerType).append("\n\n");
-            for (GuiItemData item : cap.items) {
-                sb.append("[").append(item.slot()).append("] ").append(item.materialId()).append("\n");
-                sb.append("  Name: ").append(item.displayName()).append("\n");
-                for (String line : item.lore()) {
-                    sb.append("  Lore: ").append(line).append("\n");
-                }
-                sb.append("  Count: ").append(item.count()).append(" | Glint: ").append(item.hasEnchantGlint()).append("\n\n");
+        Button saveBtn = new Button(0, 0, 100, "Save Capture", () -> {
+            GuiCapture saveCap = engine.getLastInspectorCapture();
+            if (saveCap != null) {
+                engine.saveCapture(saveCap);
             }
-            Minecraft.getInstance().keyboardHandler.setClipboard(sb.toString());
-            EventBus.post(LogEvent.Type.SYSTEM, "Inspector data copied to clipboard");
         });
-        inspCopyBtn.setAnchor(Widget.Anchor.BOTTOM);
-        inspCopyBtn.setFixedHeight(14);
-        inspCopyBtn.setMargins(0, 0, 16, 0); // 16px from bottom for export button below
-        inspectorWindow.addChild(inspCopyBtn);
+        saveBtn.setAnchor(Widget.Anchor.BOTTOM);
+        saveBtn.setFixedHeight(14);
+        saveBtn.setMargins(0, 0, 32, 0);
+        inspectorWindow.addChild(saveBtn);
+
+        Button genFpBtn = new Button(0, 0, 130, "Copy to Clipboard", () -> {
+            GuiCapture genCap = engine.getLastInspectorCapture();
+            if (genCap != null) {
+                String json = FingerprintGenerator.generate(genCap);
+                Minecraft.getInstance().keyboardHandler.setClipboard(json);
+                EventBus.post(LogEvent.Type.SYSTEM, "Fingerprint template copied to clipboard");
+            }
+        });
+        genFpBtn.setAnchor(Widget.Anchor.BOTTOM);
+        genFpBtn.setFixedHeight(14);
+        genFpBtn.setMargins(0, 0, 16, 0);
+        inspectorWindow.addChild(genFpBtn);
 
         Button probeBtn = new Button(0, 0, 120, "Run GUI Probe", () -> {
             AutoProbeSystem probe = AutoProbeSystem.getInstance();
@@ -1058,9 +1054,66 @@ public class ArchivistScreen extends Screen {
         serverListWindow.addChild(panel);
     }
 
+    // Manual Log: stored previous values for undo
+    private String manualLogPrevIp;
+    private String manualLogPrevDomain;
+    private int    manualLogPrevPort;
+    private boolean manualLogHasUndo = false;
+
+    private void buildManualLogWindow() {
+        manualLogWindow.clearChildren();
+
+        manualLogWindow.addChild(new Label(0, 0, 200, "Override server details:"));
+
+        TextField ipField = new TextField(0, 0, 200, "IP (leave blank to keep)");
+        TextField domainField = new TextField(0, 0, 200, "Domain (leave blank to keep)");
+        TextField portField = new TextField(0, 0, 200, "Port (leave blank to keep)");
+
+        manualLogWindow.addChild(ipField);
+        manualLogWindow.addChild(domainField);
+        manualLogWindow.addChild(portField);
+
+        manualLogWindow.addChild(new Button(0, 0, 200, "Apply & Re-log", () -> {
+            ServerDataCollector dc = getDataCollector();
+            if (dc == null) return;
+            // Save current values for undo
+            manualLogPrevIp = dc.ip;
+            manualLogPrevDomain = dc.domain;
+            manualLogPrevPort = dc.port;
+            manualLogHasUndo = true;
+            // Apply overrides
+            dc.applyManualOverrides(ipField.getText(), domainField.getText(), portField.getText());
+            JsonLogger.write(dc);
+            EventBus.post(LogEvent.Type.SYSTEM,
+                    "[MANUAL] Server details updated \u2192 " + dc.domain + " (" + dc.ip + ":" + dc.port + ")");
+            buildServerInfoWindow();
+            buildManualLogWindow(); // rebuild to enable undo button
+            ipField.clear();
+            domainField.clear();
+            portField.clear();
+        }));
+
+        Button undoBtn = new Button(0, 0, 200, "Undo", () -> {
+            ServerDataCollector dc = getDataCollector();
+            if (dc == null || !manualLogHasUndo) return;
+            dc.ip = manualLogPrevIp;
+            dc.domain = manualLogPrevDomain;
+            dc.port = manualLogPrevPort;
+            manualLogHasUndo = false;
+            JsonLogger.write(dc);
+            EventBus.post(LogEvent.Type.SYSTEM,
+                    "[MANUAL] Reverted \u2192 " + dc.domain + " (" + dc.ip + ":" + dc.port + ")");
+            buildServerInfoWindow();
+            buildManualLogWindow(); // rebuild to disable undo button
+        });
+        undoBtn.setEnabled(manualLogHasUndo);
+        manualLogWindow.addChild(undoBtn);
+    }
+
     private void showServerLogDetail(ServerLogData log) {
         // Populate server info window with historical data
         serverInfoWindow.clearChildren();
+        serverInfoWindow.addChild(new Label(0, 0, 180, "\u2500\u2500 Connection \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", ColorScheme.get().accent()));
         addKV(serverInfoWindow, "IP", log.ip);
         addKV(serverInfoWindow, "Port", String.valueOf(log.port));
         addKV(serverInfoWindow, "Domain", log.domain);
@@ -1068,6 +1121,24 @@ public class ArchivistScreen extends Screen {
         addKV(serverInfoWindow, "Brand", log.brand);
         addKV(serverInfoWindow, "Players", String.valueOf(log.playerCount));
         addKV(serverInfoWindow, "Last Seen", log.timestamp);
+
+        // ── Worlds section ──
+        serverInfoWindow.addChild(new Label(0, 0, 180, ""));
+        serverInfoWindow.addChild(new Label(0, 0, 180, "\u2500\u2500 Worlds (" + log.worlds.size() + ") \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", ColorScheme.get().accent()));
+        for (ServerLogData.WorldSession ws : log.worlds) {
+            serverInfoWindow.addChild(new Label(0, 0, 180, ws.dimension, ColorScheme.get().accent()));
+            serverInfoWindow.addChild(new Label(0, 0, 180, "  " + ws.timestamp, ColorScheme.get().textSecondary()));
+            if (ws.resourcePack != null) {
+                serverInfoWindow.addChild(new Label(0, 0, 180, "  RP: " + ws.resourcePack, ColorScheme.get().textSecondary()));
+            }
+        }
+        if (!log.detectedAddresses.isEmpty()) {
+            serverInfoWindow.addChild(new Label(0, 0, 180, ""));
+            serverInfoWindow.addChild(new Label(0, 0, 180, "Detected Addresses:", ColorScheme.get().accent()));
+            for (String addr : log.detectedAddresses) {
+                serverInfoWindow.addChild(new Label(0, 0, 180, "  " + addr, ColorScheme.get().textSecondary()));
+            }
+        }
         serverInfoWindow.setVisible(true);
 
         // Populate plugin list
@@ -1079,25 +1150,6 @@ public class ArchivistScreen extends Screen {
         }
         pluginListWindow.addChild(pList);
         pluginListWindow.setVisible(true);
-
-        // Populate world info
-        worldInfoWindow.clearChildren();
-        worldInfoWindow.setTitle("Worlds (" + log.worlds.size() + ")");
-        for (ServerLogData.WorldSession ws : log.worlds) {
-            worldInfoWindow.addChild(new Label(0, 0, 170, ws.dimension, ColorScheme.get().accent()));
-            worldInfoWindow.addChild(new Label(0, 0, 170, "  " + ws.timestamp, ColorScheme.get().textSecondary()));
-            if (ws.resourcePack != null) {
-                worldInfoWindow.addChild(new Label(0, 0, 170, "  RP: " + ws.resourcePack, ColorScheme.get().textSecondary()));
-            }
-        }
-        if (!log.detectedAddresses.isEmpty()) {
-            worldInfoWindow.addChild(new Label(0, 0, 170, ""));
-            worldInfoWindow.addChild(new Label(0, 0, 170, "Detected Addresses:", ColorScheme.get().accent()));
-            for (String addr : log.detectedAddresses) {
-                worldInfoWindow.addChild(new Label(0, 0, 170, "  " + addr, ColorScheme.get().textSecondary()));
-            }
-        }
-        worldInfoWindow.setVisible(true);
     }
 
     private String buildServerLogJson(ServerLogData log) {
@@ -1383,9 +1435,9 @@ public class ArchivistScreen extends Screen {
             switch (keyCode) {
                 case GLFW.GLFW_KEY_1 -> { toggleAndFocus(serverInfoWindow); shortcutConsumedThisFrame = true; return true; }
                 case GLFW.GLFW_KEY_2 -> { toggleAndFocus(pluginListWindow); shortcutConsumedThisFrame = true; return true; }
-                case GLFW.GLFW_KEY_3 -> { toggleAndFocus(worldInfoWindow); shortcutConsumedThisFrame = true; return true; }
-                case GLFW.GLFW_KEY_4 -> { toggleAndFocus(connectionLogWindow); shortcutConsumedThisFrame = true; return true; }
-                case GLFW.GLFW_KEY_5 -> { toggleAndFocus(consoleWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_3 -> { toggleAndFocus(connectionLogWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_4 -> { toggleAndFocus(consoleWindow); shortcutConsumedThisFrame = true; return true; }
+                case GLFW.GLFW_KEY_5 -> { toggleAndFocus(manualLogWindow); shortcutConsumedThisFrame = true; return true; }
                 case GLFW.GLFW_KEY_F -> { openGlobalSearch(); shortcutConsumedThisFrame = true; return true; }
                 case GLFW.GLFW_KEY_S -> { saveConfig(); shortcutConsumedThisFrame = true; return true; }
             }

@@ -23,6 +23,7 @@ public class CommandRegistry {
         register(new ThemeCommand());
         register(new ProbeCommand());
         register(new InspectorCommand());
+        register(new ReplayFingerprintsCommand());
     }
 
     public static void register(Command cmd) {

@@ -14,37 +14,39 @@ public class PluginGlossary {
 
     private final Map<String, String> entries = new LinkedHashMap<>();
 
-    private static final List<Map.Entry<String, String>> DEFAULT_ENTRIES = List.of(
-
-
-
-            // ── Elytra / Flight ──────────────────────────────────────────
-            Map.entry("elytraboost",               "elytraboost"),
-            Map.entry("flightcontrol",             "flightcontrol")
-    );
-
     public void load() {
         entries.clear();
-        if (!Files.exists(DICT_PATH)) {
-            // First run: seed with defaults then persist
-            for (Map.Entry<String, String> e : DEFAULT_ENTRIES) {
-                entries.put(e.getKey(), e.getValue());
-            }
-            save();
-            return;
-        }
 
-        try (Reader r = Files.newBufferedReader(DICT_PATH)) {
-            JsonObject obj = JsonParser.parseReader(r).getAsJsonObject();
-            if (obj.has("entries")) {
-                JsonObject entriesObj = obj.getAsJsonObject("entries");
-                for (Map.Entry<String, JsonElement> e : entriesObj.entrySet()) {
-                    entries.put(e.getKey(), e.getValue().getAsString());
+        // Load bundled glossary from resources
+        try (InputStream is = PluginGlossary.class.getResourceAsStream("/assets/archivist/glossary.json")) {
+            if (is != null) {
+                JsonObject obj = JsonParser.parseReader(new InputStreamReader(is)).getAsJsonObject();
+                if (obj.has("entries")) {
+                    JsonObject entriesObj = obj.getAsJsonObject("entries");
+                    for (Map.Entry<String, JsonElement> e : entriesObj.entrySet()) {
+                        entries.put(e.getKey(), e.getValue().getAsString());
+                    }
                 }
+                ArchivistMod.LOGGER.info("[Archivist] Loaded {} bundled glossary entries", entries.size());
             }
         } catch (Exception e) {
-            ArchivistMod.LOGGER.warn("[Archivist] Failed to load glossary: {}", e.getMessage());
-            ArchivistMod.sendMessage("Failed to load glossary: " + e.getMessage());
+            ArchivistMod.LOGGER.warn("[Archivist] Failed to load bundled glossary: {}", e.getMessage());
+        }
+
+        // Merge user overrides from config file (user wins on conflicts)
+        if (Files.exists(DICT_PATH)) {
+            try (Reader r = Files.newBufferedReader(DICT_PATH)) {
+                JsonObject obj = JsonParser.parseReader(r).getAsJsonObject();
+                if (obj.has("entries")) {
+                    JsonObject entriesObj = obj.getAsJsonObject("entries");
+                    for (Map.Entry<String, JsonElement> e : entriesObj.entrySet()) {
+                        entries.put(e.getKey(), e.getValue().getAsString());
+                    }
+                }
+            } catch (Exception e) {
+                ArchivistMod.LOGGER.warn("[Archivist] Failed to load glossary: {}", e.getMessage());
+                ArchivistMod.sendMessage("Failed to load glossary: " + e.getMessage());
+            }
         }
     }
 

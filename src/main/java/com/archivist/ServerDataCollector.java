@@ -85,11 +85,7 @@ public class ServerDataCollector {
         }
 
         // ── Brand ────────────────────────────────────────────────────────────────
-        try {
-            String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor)
-                    handler).getServerBrand();
-            if (b != null && !b.isBlank()) brand = b;
-        } catch (Exception ignored) {}
+        tryFetchBrand(handler);
 
         // ── Exception detection ──────────────────────────────────────────────────
         if (ArchivistMod.INSTANCE != null
@@ -172,11 +168,7 @@ public class ServerDataCollector {
                 Minecraft client = Minecraft.getInstance();
                 if (client.getConnection() != null) {
                     if ("unknown".equals(brand)) {
-                        try {
-                            String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor)
-                                    client.getConnection()).getServerBrand();
-                            if (b != null && !b.isBlank()) brand = b;
-                        } catch (Exception ignored) {}
+                        tryFetchBrand(client.getConnection());
                     }
                     doScan(client);
                 }
@@ -208,8 +200,8 @@ public class ServerDataCollector {
 
         if (pollTicks >= MAX_POLL_TIME) {
             // Timed out without finding a real sub-server domain.
-            if (domain.equals(exceptionProxyAddress)) {
-                if (exceptionProxyAddress != null) detectedGameAddresses.add(exceptionProxyAddress);
+            if (exceptionProxyAddress != null && domain.equals(exceptionProxyAddress)) {
+                detectedGameAddresses.add(exceptionProxyAddress);
                 domain = "unknown";
                 onExceptionServer = false;
                 JsonLogger.write(this);
@@ -261,14 +253,10 @@ public class ServerDataCollector {
         // tab/scoreboard resolution or the poll-timeout fallback in tick().
         if (onExceptionServer && !resolved) return;
         if ("unknown".equals(brand)) {
-            try {
-                var mc = Minecraft.getInstance();
-                if (mc.getConnection() != null) {
-                    String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor)
-                            mc.getConnection()).getServerBrand();
-                    if (b != null && !b.isBlank()) brand = b;
-                }
-            } catch (Exception ignored) {}
+            var mc = Minecraft.getInstance();
+            if (mc.getConnection() != null) {
+                tryFetchBrand(mc.getConnection());
+            }
         }
         JsonLogger.write(this);
     }
@@ -302,6 +290,22 @@ public class ServerDataCollector {
         for (String addr : UrlExtractor.extract(text)) {
             if (isGameAddress(addr)) detectedGameAddresses.add(addr);
             else detectedAddresses.add(addr);
+        }
+    }
+
+    private void tryFetchBrand(Object handler) {
+        try {
+            String b = ((com.archivist.mixin.accessor.ClientCommonListenerAccessor) handler).getServerBrand();
+            if (b != null && !b.isBlank()) brand = b;
+        } catch (Exception ignored) {}
+    }
+
+    /** Apply manual overrides — only non-empty fields replace the current values. */
+    public void applyManualOverrides(String manualIp, String manualDomain, String manualPort) {
+        if (manualIp != null && !manualIp.isBlank()) this.ip = manualIp.trim();
+        if (manualDomain != null && !manualDomain.isBlank()) this.domain = manualDomain.trim();
+        if (manualPort != null && !manualPort.isBlank()) {
+            try { this.port = Integer.parseInt(manualPort.trim()); } catch (NumberFormatException ignored) {}
         }
     }
 
