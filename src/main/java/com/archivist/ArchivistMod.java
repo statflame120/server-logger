@@ -48,6 +48,11 @@ public class ArchivistMod implements ClientModInitializer {
     public KeyMapping openGuiKey;
     private boolean guiKeyWasDown = false;
 
+    /** Signal that the GUI key is already handled, preventing the tick handler from reopening. */
+    public void consumeGuiKey() {
+        guiKeyWasDown = true;
+    }
+
     @Override
     public void onInitializeClient() {
         INSTANCE = this;
@@ -136,6 +141,9 @@ public class ArchivistMod implements ClientModInitializer {
                     client.setScreen(new ArchivistScreen(client.screen));
                 }
                 guiKeyWasDown = keyDown;
+            } else if (client.screen instanceof ArchivistScreen) {
+                guiKeyWasDown = GLFW.glfwGetKey(GLFW.glfwGetCurrentContext(),
+                        KeyBindingHelper.getBoundKeyOf(openGuiKey).getValue()) == GLFW.GLFW_PRESS;
             } else {
                 guiKeyWasDown = false;
             }

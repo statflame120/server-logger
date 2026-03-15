@@ -1500,6 +1500,7 @@ public class ArchivistScreen extends Screen {
     private boolean handleKeyPressed(int keyCode, int scanCode, int modifiers) {
         // Bound key toggles the screen closed
         if (ArchivistMod.INSTANCE != null && keyCode == KeyBindingHelper.getBoundKeyOf(ArchivistMod.INSTANCE.openGuiKey).getValue()) {
+            ArchivistMod.INSTANCE.consumeGuiKey();
             onClose();
             return true;
         }
