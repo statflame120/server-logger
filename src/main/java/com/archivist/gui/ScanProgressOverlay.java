@@ -179,7 +179,7 @@ public class ScanProgressOverlay {
         // Auto-scrape estimate
         if (ArchivistMod.INSTANCE != null) {
             var config = ArchivistMod.INSTANCE.extendedConfig;
-            if (config.autoScrapeOnJoin) {
+            if (config.autoScrapeOnJoin || config.smartProbeOnJoin) {
                 int scrapeCommands = config.scraperCommands.size();
                 int delayTicks = config.scraperDelay / 50; // ms to ticks
                 ticks += 100 + (scrapeCommands * (delayTicks + 10)); // initial delay + per-command

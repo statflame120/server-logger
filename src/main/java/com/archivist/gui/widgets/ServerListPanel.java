@@ -11,12 +11,12 @@ import java.util.function.Consumer;
 
 /**
  * Server list panel showing all previously logged servers.
- * Contains a search bar, sortable scrollable list, and bottom action bar.
+ * Contains a search bar and sortable scrollable list.
+ * Right-click on a server entry to see actions (Details, Connect, Export, Delete).
  */
 public class ServerListPanel extends Widget {
 
     private static final int SEARCH_BAR_HEIGHT = 16;
-    private static final int BOTTOM_BAR_HEIGHT = 18;
     private static final int SCROLLBAR_WIDTH = 5;
     private static final int HEADER_GAP = 3;
     private static final int INNER_PAD = 4;
@@ -33,10 +33,6 @@ public class ServerListPanel extends Widget {
     // Child widgets
     private TextField searchField;
     private Button sortButton;
-    private Button viewDetailsButton;
-    private Button connectButton;
-    private Button exportButton;
-    private Button deleteButton;
 
     // Callbacks
     private Consumer<String> onServerSelected;
@@ -71,12 +67,6 @@ public class ServerListPanel extends Widget {
 
         sortButton = new Button(cx + cw - 65, y + 2, 65, SEARCH_BAR_HEIGHT,
                 "Sort: Recent", this::cycleSortMode);
-
-        int bottomY = y + height - BOTTOM_BAR_HEIGHT + 2;
-        viewDetailsButton = new Button(cx, bottomY, 55, 14, "Details", this::fireViewDetails);
-        connectButton = new Button(cx + 60, bottomY, 50, 14, "Connect", this::fireQuickConnect);
-        exportButton = new Button(cx + 115, bottomY, 45, 14, "Export", this::fireExportServer);
-        deleteButton = new Button(cx + 165, bottomY, 45, 14, "Delete", this::fireDeleteServer);
     }
 
     /** Must be called when the panel is repositioned by its parent DraggableWindow. */
@@ -89,12 +79,6 @@ public class ServerListPanel extends Widget {
 
         sortButton.setPosition(cx + cw - 65, y + 2);
         sortButton.setSize(65, SEARCH_BAR_HEIGHT);
-
-        int bottomY = y + height - BOTTOM_BAR_HEIGHT + 2;
-        viewDetailsButton.setPosition(cx, bottomY);
-        connectButton.setPosition(cx + 60, bottomY);
-        exportButton.setPosition(cx + 115, bottomY);
-        deleteButton.setPosition(cx + 165, bottomY);
     }
 
     // ── Data Management ──────────────────────────────────────────────
@@ -170,24 +154,21 @@ public class ServerListPanel extends Widget {
     public void setOnDeleteServer(Consumer<String> cb) { this.onDeleteServer = cb; }
     public void setOnQuickConnect(Consumer<String> cb) { this.onQuickConnect = cb; }
 
-    private void fireQuickConnect() {
-        String addr = getSelectedAddress();
-        if (addr != null && onQuickConnect != null) onQuickConnect.accept(addr);
-    }
-
-    private void fireViewDetails() {
-        String addr = getSelectedAddress();
-        if (addr != null && onViewDetails != null) onViewDetails.accept(addr);
-    }
-
-    private void fireExportServer() {
-        String addr = getSelectedAddress();
-        if (addr != null && onExportServer != null) onExportServer.accept(addr);
-    }
-
-    private void fireDeleteServer() {
-        String addr = getSelectedAddress();
-        if (addr != null && onDeleteServer != null) onDeleteServer.accept(addr);
+    private void showContextMenu(String addr, int mx, int my) {
+        ContextMenu menu = new ContextMenu(mx, my);
+        menu.addItem("Details", () -> {
+            if (onViewDetails != null) onViewDetails.accept(addr);
+        });
+        menu.addItem("Connect", () -> {
+            if (onQuickConnect != null) onQuickConnect.accept(addr);
+        });
+        menu.addItem("Export", () -> {
+            if (onExportServer != null) onExportServer.accept(addr);
+        });
+        menu.addItem("Delete", () -> {
+            if (onDeleteServer != null) onDeleteServer.accept(addr);
+        });
+        PopupLayer.open(menu, () -> new int[]{mx, my}, null);
     }
 
     // ── Rendering ────────────────────────────────────────────────────
@@ -207,7 +188,7 @@ public class ServerListPanel extends Widget {
         }
 
         int listTop = y + SEARCH_BAR_HEIGHT + HEADER_GAP;
-        int listBottom = y + height - BOTTOM_BAR_HEIGHT;
+        int listBottom = y + height;
         int listHeight = listBottom - listTop;
         int entryWidth = width - INNER_PAD * 2 - (hasScrollbar() ? SCROLLBAR_WIDTH + 1 : 0);
 
@@ -246,20 +227,6 @@ public class ServerListPanel extends Widget {
             int thumbColor = (draggingScrollbar || sbHover) ? cs.scrollbarHover() : cs.scrollbarThumb();
             RenderUtils.drawRect(g, sbX, thumbY, SCROLLBAR_WIDTH, thumbH, thumbColor);
         }
-
-        // Separator above bottom bar
-        RenderUtils.drawHLine(g, x + INNER_PAD, listBottom, width - INNER_PAD * 2, cs.separator());
-
-        // Bottom bar
-        if (selectedIndex >= 0 && selectedIndex < filteredEntries.size()) {
-            viewDetailsButton.render(g, mouseX, mouseY, delta);
-            connectButton.render(g, mouseX, mouseY, delta);
-            exportButton.render(g, mouseX, mouseY, delta);
-            deleteButton.render(g, mouseX, mouseY, delta);
-        } else {
-            int textY = y + height - BOTTOM_BAR_HEIGHT + (BOTTOM_BAR_HEIGHT - RenderUtils.scaledFontHeight()) / 2;
-            RenderUtils.drawText(g, "No server selected", x + INNER_PAD, textY, cs.textSecondary());
-        }
     }
 
     // ── Input ────────────────────────────────────────────────────────
@@ -279,20 +246,8 @@ public class ServerListPanel extends Widget {
             return sortButton.onMouseClicked(mouseX, mouseY, button);
         }
 
-        // Bottom bar buttons
-        if (selectedIndex >= 0) {
-            if (viewDetailsButton.containsPoint(mouseX, mouseY))
-                return viewDetailsButton.onMouseClicked(mouseX, mouseY, button);
-            if (connectButton.containsPoint(mouseX, mouseY))
-                return connectButton.onMouseClicked(mouseX, mouseY, button);
-            if (exportButton.containsPoint(mouseX, mouseY))
-                return exportButton.onMouseClicked(mouseX, mouseY, button);
-            if (deleteButton.containsPoint(mouseX, mouseY))
-                return deleteButton.onMouseClicked(mouseX, mouseY, button);
-        }
-
         int listTop = y + SEARCH_BAR_HEIGHT + HEADER_GAP;
-        int listBottom = y + height - BOTTOM_BAR_HEIGHT;
+        int listBottom = y + height;
 
         // Scrollbar
         if (hasScrollbar() && button == 0) {
@@ -306,18 +261,25 @@ public class ServerListPanel extends Widget {
             }
         }
 
-        // Entry click
-        if (button == 0 && mouseY >= listTop && mouseY < listBottom) {
+        // Entry click (left or right)
+        if (mouseY >= listTop && mouseY < listBottom) {
             float clickY = (float) (mouseY - listTop + scrollOffset);
             int clickedIndex = (int) (clickY / ServerListEntry.ENTRY_HEIGHT);
             if (clickedIndex >= 0 && clickedIndex < filteredEntries.size()) {
+                // Select the entry
                 if (selectedIndex >= 0 && selectedIndex < filteredEntries.size()) {
                     filteredEntries.get(selectedIndex).setSelected(false);
                 }
                 selectedIndex = clickedIndex;
                 filteredEntries.get(selectedIndex).setSelected(true);
-                if (onServerSelected != null) {
-                    onServerSelected.accept(filteredEntries.get(selectedIndex).getServerAddress());
+                String addr = filteredEntries.get(selectedIndex).getServerAddress();
+
+                if (button == 0) {
+                    // Left click: select
+                    if (onServerSelected != null) onServerSelected.accept(addr);
+                } else if (button == 1) {
+                    // Right click: context menu
+                    showContextMenu(addr, (int) mouseX, (int) mouseY);
                 }
                 return true;
             }
@@ -332,12 +294,7 @@ public class ServerListPanel extends Widget {
             draggingScrollbar = false;
             return true;
         }
-        // Forward releases to buttons
         if (sortButton.onMouseReleased(mouseX, mouseY, button)) return true;
-        if (viewDetailsButton.onMouseReleased(mouseX, mouseY, button)) return true;
-        if (connectButton.onMouseReleased(mouseX, mouseY, button)) return true;
-        if (exportButton.onMouseReleased(mouseX, mouseY, button)) return true;
-        if (deleteButton.onMouseReleased(mouseX, mouseY, button)) return true;
         return false;
     }
 
@@ -388,7 +345,7 @@ public class ServerListPanel extends Widget {
     // ── Scroll Helpers ───────────────────────────────────────────────
 
     private int getListAreaHeight() {
-        return height - SEARCH_BAR_HEIGHT - HEADER_GAP - BOTTOM_BAR_HEIGHT;
+        return height - SEARCH_BAR_HEIGHT - HEADER_GAP;
     }
 
     private float getTotalContentHeight() {

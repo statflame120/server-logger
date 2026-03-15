@@ -2,6 +2,9 @@ package com.archivist.scraper;
 
 import com.archivist.ArchivistMod;
 import com.archivist.config.ArchivistConfig;
+import com.archivist.data.EventBus;
+import com.archivist.data.LogEvent;
+import com.archivist.gui.ScanProgressOverlay;
 import com.archivist.gui.screen.ArchivistScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -120,6 +123,7 @@ public class GuiScraper {
             return;
         }
 
+        EventBus.post(LogEvent.Type.SYSTEM, "[SCRAPER] Starting probe (" + commandQueue.size() + " commands)...");
         sendNextCommand();
     }
 
@@ -138,6 +142,7 @@ public class GuiScraper {
                     Minecraft mc = Minecraft.getInstance();
                     if (mc.player == null || !hasSurvivalItems(mc.player)) {
                         ArchivistMod.LOGGER.info("[Archivist] Smart probe: no survival items found, skipping");
+                        EventBus.post(LogEvent.Type.SYSTEM, "[SCRAPER] Smart probe: no survival items, skipped");
                         statusMessage = "Skipped (no survival items)";
                         smartMode = false;
                         return;
@@ -301,6 +306,7 @@ public class GuiScraper {
 
         statusMessage = currentCommand + ": " + items.size() + " items, " + found.size() + " plugins";
         ArchivistMod.LOGGER.info("[Archivist] Scraped {} -> {} items, plugins: {}", currentCommand, items.size(), found);
+        EventBus.post(LogEvent.Type.SYSTEM, "[SCRAPER] " + currentCommand + " -> " + items.size() + " items, " + found.size() + " plugins");
 
         // Close the screen
         try {
@@ -359,6 +365,7 @@ public class GuiScraper {
         statusMessage = "Done: " + identifiedPlugins.size() + " plugin(s) found across "
                 + results.size() + " commands";
         ArchivistMod.LOGGER.info("[Archivist] Scrape complete: {}", statusMessage);
+        EventBus.post(LogEvent.Type.SYSTEM, "[SCRAPER] " + statusMessage);
     }
 
     private boolean hasSurvivalItems(Player player) {

@@ -61,23 +61,23 @@ public class DbCommand implements Command {
                     output.accept("Resetting remote logs...");
                     sync.resetLogs();
                 } else {
-                    output.accept("This will reset ALL remote logs. Type: !db reset confirm");
+                    output.accept("This will reset ALL remote logs. Type: db reset confirm");
                 }
             }
             case "set" -> handleSet(parts, cfg, sync, output);
             case "remove" -> handleRemove(parts, cfg, output);
             default -> {
-                output.accept("Usage: !db <status|sync|download|test|reset|set|remove>");
-                output.accept("  !db set baseurl <url>");
-                output.accept("  !db set header <name> <value>");
-                output.accept("  !db remove header <name>");
+                output.accept("Usage: db <status|sync|download|test|reset|set|remove>");
+                output.accept("  db set baseurl <url>");
+                output.accept("  db set header <name> <value>");
+                output.accept("  db remove header <name>");
             }
         }
     }
 
     private void handleSet(String[] parts, ApiConfig cfg, ApiSyncManager sync, Consumer<String> output) {
         if (parts.length < 2) {
-            output.accept("Usage: !db set <baseurl|header> <value>");
+            output.accept("Usage: db set <baseurl|header> <value>");
             return;
         }
         // parts[0]="set", parts[1]="baseurl <url>" or "header <name> <value>"
@@ -87,7 +87,7 @@ public class DbCommand implements Command {
         switch (key) {
             case "baseurl" -> {
                 if (setParts.length < 2) {
-                    output.accept("Usage: !db set baseurl <url>");
+                    output.accept("Usage: db set baseurl <url>");
                     return;
                 }
                 cfg.baseUrl = setParts[1].trim();
@@ -97,7 +97,7 @@ public class DbCommand implements Command {
             }
             case "header" -> {
                 if (setParts.length < 3) {
-                    output.accept("Usage: !db set header <name> <value>");
+                    output.accept("Usage: db set header <name> <value>");
                     return;
                 }
                 String headerName = setParts[1];
@@ -113,12 +113,12 @@ public class DbCommand implements Command {
 
     private void handleRemove(String[] parts, ApiConfig cfg, Consumer<String> output) {
         if (parts.length < 2) {
-            output.accept("Usage: !db remove header <name>");
+            output.accept("Usage: db remove header <name>");
             return;
         }
         String[] rmParts = parts.length >= 3 ? (parts[1] + " " + parts[2]).split("\\s+", 2) : parts[1].split("\\s+", 2);
         if (rmParts.length < 2 || !"header".equalsIgnoreCase(rmParts[0])) {
-            output.accept("Usage: !db remove header <name>");
+            output.accept("Usage: db remove header <name>");
             return;
         }
         String headerName = rmParts[1].trim();

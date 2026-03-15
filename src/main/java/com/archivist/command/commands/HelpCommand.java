@@ -14,7 +14,7 @@ public class HelpCommand implements Command {
     public void execute(String args, Consumer<String> output) {
         output.accept("=== Archivist Commands ===");
         for (Command cmd : CommandRegistry.getCommands()) {
-            output.accept("  !" + cmd.name() + " - " + cmd.description());
+            output.accept("  " + cmd.name() + " - " + cmd.description());
         }
     }
 }

@@ -42,6 +42,7 @@ public class DraggableWindow extends Widget {
     private final List<Widget> children = new ArrayList<>();
     private boolean minimized = false;
     private boolean dragging = false;
+    public boolean isDragging() { return dragging; }
     private int dragOffsetX, dragOffsetY;
     private float scrollOffset = 0;
     private float maxScroll = 0;

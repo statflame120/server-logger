@@ -16,6 +16,7 @@ import com.archivist.database.ApiSyncManager;
 import com.archivist.database.DatabaseManager;
 import com.archivist.gui.render.ColorScheme;
 import com.archivist.gui.render.GradientConfig;
+import com.archivist.gui.render.RenderUtils;
 import com.archivist.gui.render.ThemeManager;
 import com.archivist.gui.ServerLogData;
 import com.archivist.gui.ServerLogReader;
@@ -185,6 +186,19 @@ public class ArchivistScreen extends Screen {
                     w.setVisible(true);
                     w.setMinimized(false);
                     bringToFront(w);
+                    // Scroll to matching item in the window's ScrollableList
+                    for (Widget child : w.getChildren()) {
+                        if (child instanceof ScrollableList list) {
+                            for (int i = 0; i < list.getItems().size(); i++) {
+                                if (list.getItems().get(i).text.equals(matchText)) {
+                                    list.scrollToItem(i);
+                                    list.setSelectedIndex(i);
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
                     break;
                 }
             }
@@ -433,10 +447,16 @@ public class ArchivistScreen extends Screen {
         ArchivistConfig cfg = getExtConfig();
         generalTab.addChild(new CheckBox(0, 0, 200, "Auto probe GUIs on join (breaks buttons for 2 seconds)",
                 cfg != null && cfg.autoScrapeOnJoin,
-                v -> { if (cfg != null) { cfg.autoScrapeOnJoin = v; cfg.save(); } }));
+                v -> {
+                    if (cfg != null) { cfg.autoScrapeOnJoin = v; cfg.save(); }
+                    if (!v && ArchivistMod.INSTANCE != null) ArchivistMod.INSTANCE.guiScraper.reset();
+                }));
         generalTab.addChild(new CheckBox(0, 0, 200, "Smart probe GUIs (only if survival items found)",
                 cfg == null || cfg.smartProbeOnJoin,
-                v -> { if (cfg != null) { cfg.smartProbeOnJoin = v; cfg.save(); } }));
+                v -> {
+                    if (cfg != null) { cfg.smartProbeOnJoin = v; cfg.save(); }
+                    if (!v && ArchivistMod.INSTANCE != null) ArchivistMod.INSTANCE.guiScraper.reset();
+                }));
         generalTab.addChild(new CheckBox(0, 0, 200, "Silent scraper (hide chat)",
                 cfg == null || cfg.silentScraper,
                 v -> {
@@ -460,9 +480,12 @@ public class ArchivistScreen extends Screen {
         generalTab.addChild(new CheckBox(0, 0, 200, "Show scan overlay",
                 cfg == null || cfg.showScanOverlay,
                 v -> { if (cfg != null) { cfg.showScanOverlay = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Search bar pop-up in Menu",
+                cfg == null || cfg.searchBarPopup,
+                v -> { if (cfg != null) { cfg.searchBarPopup = v; cfg.save(); } }));
 
         GuiFingerprintEngine fpEngine = GuiFingerprintEngine.getInstance();
-        generalTab.addChild(new CheckBox(0, 0, 200, "GUI Inspector mode",
+        generalTab.addChild(new CheckBox(0, 0, 200, "Auto GUI Inspect (adds a tiny delay to GUIs)",
                 fpEngine.isInspectorEnabled(),
                 v -> fpEngine.setInspectorEnabled(v)));
         generalTab.addChild(new Label(0, 0, 200, ""));
@@ -530,14 +553,49 @@ public class ArchivistScreen extends Screen {
                 connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
 
                 ScrollableList headerList = new ScrollableList(0, 0, 200, 50);
-                for (String name : apiCfg.getAuthHeaderNames()) {
+                List<String> headerNames = new ArrayList<>(apiCfg.getAuthHeaderNames());
+                for (String name : headerNames) {
                     Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
                     String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
                     headerList.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
                 }
-                if (apiCfg.getAuthHeaderNames().isEmpty()) {
+                if (headerNames.isEmpty()) {
                     headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
                 }
+                // Right-click to rename/remove headers
+                headerList.setOnRightClick((item, index, mx, my) -> {
+                    if (index >= headerNames.size()) return;
+                    String hdrName = headerNames.get(index);
+                    ContextMenu menu = new ContextMenu(mx, my);
+                    menu.addItem("Rename", () -> {
+                        TextField renameField = new TextField(0, 0, 140, hdrName);
+                        renameField.setText(hdrName);
+                        Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
+                            String newName = renameField.getText().trim();
+                            if (!newName.isEmpty() && !newName.equals(hdrName)) {
+                                Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
+                                String val = decoded.getOrDefault(hdrName, "");
+                                apiCfg.removeAuthHeader(hdrName);
+                                apiCfg.setAuthHeader(newName, val);
+                                apiCfg.save();
+                                if (apiSync != null) apiSync.refreshClient();
+                                buildSettingsWindow();
+                            }
+                            PopupLayer.close();
+                        });
+                        Panel renamePanel = new Panel(0, 0, 160, 40);
+                        renamePanel.addChild(renameField);
+                        renamePanel.addChild(confirmBtn);
+                        PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
+                    });
+                    menu.addItem("Remove", () -> {
+                        apiCfg.removeAuthHeader(hdrName);
+                        apiCfg.save();
+                        if (apiSync != null) apiSync.refreshClient();
+                        buildSettingsWindow();
+                    });
+                    PopupLayer.open(menu, () -> new int[]{mx, my}, null);
+                });
                 connTab.addChild(headerList);
 
                 TextField headerName = new TextField(0, 0, 95, "Header name");
@@ -551,17 +609,6 @@ public class ArchivistScreen extends Screen {
                         apiCfg.setAuthHeader(hn, hv);
                         apiCfg.save();
                         if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    }
-                }));
-
-                TextField rmHeaderName = new TextField(0, 0, 120, "Header to remove");
-                connTab.addChild(rmHeaderName);
-                connTab.addChild(new Button(0, 0, 80, "Remove", () -> {
-                    String hn = rmHeaderName.getText().trim();
-                    if (!hn.isEmpty()) {
-                        apiCfg.removeAuthHeader(hn);
-                        apiCfg.save();
                         buildSettingsWindow();
                     }
                 }));
@@ -686,16 +733,51 @@ public class ArchivistScreen extends Screen {
 
                 connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
 
-                ScrollableList headerList = new ScrollableList(0, 0, 200, 50);
-                for (String name : apiCfg.getAuthHeaderNames()) {
+                ScrollableList headerList2 = new ScrollableList(0, 0, 200, 50);
+                List<String> headerNames2 = new ArrayList<>(apiCfg.getAuthHeaderNames());
+                for (String name : headerNames2) {
                     Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
                     String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
-                    headerList.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
+                    headerList2.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
                 }
-                if (apiCfg.getAuthHeaderNames().isEmpty()) {
-                    headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
+                if (headerNames2.isEmpty()) {
+                    headerList2.addItem("(no headers)", ColorScheme.get().textSecondary());
                 }
-                connTab.addChild(headerList);
+                // Right-click to rename/remove headers
+                headerList2.setOnRightClick((item, index, mx, my) -> {
+                    if (index >= headerNames2.size()) return;
+                    String hdrName = headerNames2.get(index);
+                    ContextMenu menu = new ContextMenu(mx, my);
+                    menu.addItem("Rename", () -> {
+                        TextField renameField = new TextField(0, 0, 140, hdrName);
+                        renameField.setText(hdrName);
+                        Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
+                            String newName = renameField.getText().trim();
+                            if (!newName.isEmpty() && !newName.equals(hdrName)) {
+                                Map<String, String> decoded2 = apiCfg.getDecodedAuthHeaders();
+                                String val = decoded2.getOrDefault(hdrName, "");
+                                apiCfg.removeAuthHeader(hdrName);
+                                apiCfg.setAuthHeader(newName, val);
+                                apiCfg.save();
+                                if (apiSync != null) apiSync.refreshClient();
+                                buildSettingsWindow();
+                            }
+                            PopupLayer.close();
+                        });
+                        Panel renamePanel = new Panel(0, 0, 160, 40);
+                        renamePanel.addChild(renameField);
+                        renamePanel.addChild(confirmBtn);
+                        PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
+                    });
+                    menu.addItem("Remove", () -> {
+                        apiCfg.removeAuthHeader(hdrName);
+                        apiCfg.save();
+                        if (apiSync != null) apiSync.refreshClient();
+                        buildSettingsWindow();
+                    });
+                    PopupLayer.open(menu, () -> new int[]{mx, my}, null);
+                });
+                connTab.addChild(headerList2);
 
                 TextField headerName = new TextField(0, 0, 95, "Header name");
                 TextField headerValue = new TextField(0, 0, 95, "Value", true);
@@ -708,17 +790,6 @@ public class ArchivistScreen extends Screen {
                         apiCfg.setAuthHeader(hn, hv);
                         apiCfg.save();
                         if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    }
-                }));
-
-                TextField rmHeaderName = new TextField(0, 0, 120, "Header to remove");
-                connTab.addChild(rmHeaderName);
-                connTab.addChild(new Button(0, 0, 80, "Remove", () -> {
-                    String hn = rmHeaderName.getText().trim();
-                    if (!hn.isEmpty()) {
-                        apiCfg.removeAuthHeader(hn);
-                        apiCfg.save();
                         buildSettingsWindow();
                     }
                 }));
@@ -857,6 +928,41 @@ public class ArchivistScreen extends Screen {
                 exList.addItem("(none)", ColorScheme.get().textSecondary());
             }
         }
+        // Right-click to rename/remove
+        exList.setOnRightClick((item, index, mx, my) -> {
+            if (exResolver == null || item.text.equals("(none)")) return;
+            String serverName = item.text;
+            ContextMenu menu = new ContextMenu(mx, my);
+            menu.addItem("Rename", () -> {
+                TextField renameField = new TextField(0, 0, 140, serverName);
+                renameField.setText(serverName);
+                Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
+                    String newName = renameField.getText().trim();
+                    if (!newName.isEmpty()) {
+                        Set<String> updated = new LinkedHashSet<>();
+                        for (String s : exResolver.getServers()) {
+                            updated.add(s.equals(serverName) ? newName.toLowerCase(Locale.ROOT) : s);
+                        }
+                        exResolver.setServers(updated);
+                        exResolver.save();
+                        buildSettingsWindow();
+                    }
+                    PopupLayer.close();
+                });
+                Panel renamePanel = new Panel(0, 0, 160, 40);
+                renamePanel.addChild(renameField);
+                renamePanel.addChild(confirmBtn);
+                PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
+            });
+            menu.addItem("Remove", () -> {
+                Set<String> updated = new LinkedHashSet<>(exResolver.getServers());
+                updated.remove(serverName.toLowerCase(Locale.ROOT));
+                exResolver.setServers(updated);
+                exResolver.save();
+                buildSettingsWindow();
+            });
+            PopupLayer.open(menu, () -> new int[]{mx, my}, null);
+        });
         exceptionsTab.addChild(exList);
 
         TextField addExField = new TextField(0, 0, 140, "e.g. minehut.com");
@@ -866,19 +972,6 @@ public class ArchivistScreen extends Screen {
             if (!srv.isEmpty() && exResolver != null) {
                 Set<String> updated = new LinkedHashSet<>(exResolver.getServers());
                 updated.add(srv.toLowerCase(Locale.ROOT));
-                exResolver.setServers(updated);
-                exResolver.save();
-                buildSettingsWindow();
-            }
-        }));
-
-        TextField rmExField = new TextField(0, 0, 140, "Server to remove");
-        exceptionsTab.addChild(rmExField);
-        exceptionsTab.addChild(new Button(0, 0, 80, "Remove", () -> {
-            String srv = rmExField.getText().trim();
-            if (!srv.isEmpty() && exResolver != null) {
-                Set<String> updated = new LinkedHashSet<>(exResolver.getServers());
-                updated.remove(srv.toLowerCase(Locale.ROOT));
                 exResolver.setServers(updated);
                 exResolver.save();
                 buildSettingsWindow();
@@ -1227,6 +1320,12 @@ public class ArchivistScreen extends Screen {
         taskbar.updatePosition(width, height);
         taskbar.render(g, mouseX, mouseY, delta);
 
+        // Search impression (between windows and popup layer)
+        ArchivistConfig searchCfg = getExtConfig();
+        if (!globalSearch.isOpen() && (searchCfg == null || searchCfg.searchBarPopup)) {
+            renderSearchImpression(g, mouseX, mouseY);
+        }
+
         // Popup overlay (above windows and taskbar)
         PopupLayer.render(g, mouseX, mouseY, delta);
 
@@ -1237,6 +1336,78 @@ public class ArchivistScreen extends Screen {
 
         // ── Layer 5: Tooltips (topmost) ──
         TooltipManager.render(g);
+    }
+
+    private static final int IMPRESSION_WIDTH = 150;
+    private static final int IMPRESSION_HEIGHT = 14;
+    private boolean wasHoveringImpression = false;
+
+    private void renderSearchImpression(GuiGraphics g, int mouseX, int mouseY) {
+        // Auto-collapse search overlay when no query typed and mouse is outside
+        if (globalSearch.isOpen() && !globalSearch.hasQuery() && !globalSearch.containsPoint(mouseX, mouseY)) {
+            globalSearch.collapse();
+        }
+
+        ColorScheme cs = ColorScheme.get();
+        int ix = (width - IMPRESSION_WIDTH) / 2;
+        // Dent above screen: bar is half off-screen
+        int iy = -(IMPRESSION_HEIGHT / 2);
+        int visibleTop = 0; // top of visible portion
+        int visibleH = IMPRESSION_HEIGHT / 2; // only bottom half is visible
+
+        // Hover detection: only the visible half, centered horizontally
+        int hoverPadX = IMPRESSION_WIDTH / 4; // shrink hover zone to center half
+        boolean hovered = mouseX >= ix + hoverPadX && mouseX < ix + IMPRESSION_WIDTH - hoverPadX
+                && mouseY >= visibleTop && mouseY < visibleTop + visibleH;
+
+        // Draw the impression (semi-transparent recessed bar, clipped to screen)
+        int bgAlpha = hovered ? 0x25 : 0x10;
+        int bg = (bgAlpha << 24) | (cs.tooltipBg() & 0x00FFFFFF);
+        int borderColor = (0x20 << 24) | (cs.tooltipBorder() & 0x00FFFFFF);
+        RenderUtils.drawRect(g, ix, visibleTop, IMPRESSION_WIDTH, visibleH, bg);
+        // Draw only the visible borders (bottom + sides of visible part)
+        g.fill(ix, visibleTop + visibleH - 1, ix + IMPRESSION_WIDTH, visibleTop + visibleH, borderColor); // bottom
+        g.fill(ix, visibleTop, ix + 1, visibleTop + visibleH, borderColor); // left
+        g.fill(ix + IMPRESSION_WIDTH - 1, visibleTop, ix + IMPRESSION_WIDTH, visibleTop + visibleH, borderColor); // right
+
+        // Text inside visible portion
+        String displayText = globalSearch.getLastQuery().isEmpty() ? "Search..." : globalSearch.getLastQuery();
+        int textAlpha = 0x35;
+        int textColor = (textAlpha << 24) | (cs.textSecondary() & 0x00FFFFFF);
+        int textY = visibleTop + (visibleH - RenderUtils.scaledFontHeight()) / 2;
+        String trimmed = RenderUtils.trimToWidth(displayText, IMPRESSION_WIDTH - 10);
+        RenderUtils.drawText(g, trimmed, ix + 5, textY, textColor);
+
+        // Single downward arrow below the bar (decorative, non-interactive)
+        int arrowY = visibleTop + visibleH + 1;
+        int arrowColor = (0x25 << 24) | (cs.textSecondary() & 0x00FFFFFF);
+        int arrowX = ix + IMPRESSION_WIDTH / 2 - 2;
+        RenderUtils.drawTextAtScale(g, "\u25BC", arrowX, arrowY, arrowColor, 0.5f);
+
+        // Hover: open search overlay only on hover-entry transition
+        boolean effectiveHover = hovered && !PopupLayer.isOpen();
+        if (effectiveHover) {
+            boolean anyDragging = false;
+            for (DraggableWindow w : windows) {
+                if (w.isDragging()) { anyDragging = true; break; }
+            }
+            if (anyDragging) {
+                effectiveHover = false;
+            } else {
+                for (int i = windows.size() - 1; i >= 0; i--) {
+                    DraggableWindow w = windows.get(i);
+                    if (w.isVisible() && w.containsPoint(mouseX, mouseY)) {
+                        effectiveHover = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (effectiveHover && !wasHoveringImpression) {
+            globalSearch.restore();
+        }
+        wasHoveringImpression = effectiveHover;
     }
 
     private void updateLiveData() {
@@ -1510,12 +1681,15 @@ public class ArchivistScreen extends Screen {
         EventBus.post(LogEvent.Type.SYSTEM, "Config saved");
     }
 
-    private List<GlobalSearchOverlay.SearchResult> performGlobalSearch(String query) {
+    private List<GlobalSearchOverlay.SearchResult> performGlobalSearch(GlobalSearchOverlay.SearchQuery sq) {
         List<GlobalSearchOverlay.SearchResult> results = new ArrayList<>();
         ColorScheme cs = ColorScheme.get();
+        String query = sq.query();
+        GlobalSearchOverlay.SearchFilter filter = sq.filter();
 
         // Search plugin list
-        if (pluginList != null) {
+        if ((filter == GlobalSearchOverlay.SearchFilter.ALL || filter == GlobalSearchOverlay.SearchFilter.PLUGINS)
+                && pluginList != null) {
             for (ScrollableList.ListItem item : pluginList.getItems()) {
                 if (item.text.toLowerCase().contains(query)) {
                     results.add(new GlobalSearchOverlay.SearchResult("plugin_list", "Plugins", item.text, cs.eventPlugin()));
@@ -1524,7 +1698,7 @@ public class ArchivistScreen extends Screen {
         }
 
         // Search connection log
-        if (connectionLogList != null) {
+        if (filter == GlobalSearchOverlay.SearchFilter.ALL && connectionLogList != null) {
             for (ScrollableList.ListItem item : connectionLogList.getItems()) {
                 if (item.text.toLowerCase().contains(query)) {
                     results.add(new GlobalSearchOverlay.SearchResult("connection_log", "Log", item.text, item.color));
@@ -1533,7 +1707,7 @@ public class ArchivistScreen extends Screen {
         }
 
         // Search console
-        if (consoleOutput != null) {
+        if (filter == GlobalSearchOverlay.SearchFilter.ALL && consoleOutput != null) {
             for (ScrollableList.ListItem item : consoleOutput.getItems()) {
                 if (item.text.toLowerCase().contains(query)) {
                     results.add(new GlobalSearchOverlay.SearchResult("console", "Console", item.text, item.color));
@@ -1541,11 +1715,39 @@ public class ArchivistScreen extends Screen {
             }
         }
 
-        // Search server info labels
-        for (Widget child : serverInfoWindow.getChildren()) {
-            if (child instanceof Label l) {
-                // Labels don't expose text easily, skip for now
+        // Search server info for brand/version
+        if (ArchivistMod.INSTANCE != null) {
+            var dc = ArchivistMod.INSTANCE.dataCollector;
+            if ((filter == GlobalSearchOverlay.SearchFilter.ALL || filter == GlobalSearchOverlay.SearchFilter.BRAND)
+                    && dc.brand != null && dc.brand.toLowerCase().contains(query)) {
+                results.add(new GlobalSearchOverlay.SearchResult("server_info", "Brand", dc.brand, cs.eventBrand()));
             }
+            if ((filter == GlobalSearchOverlay.SearchFilter.ALL || filter == GlobalSearchOverlay.SearchFilter.VERSION)
+                    && dc.version != null && dc.version.toLowerCase().contains(query)) {
+                results.add(new GlobalSearchOverlay.SearchResult("server_info", "Version", dc.version, cs.textPrimary()));
+            }
+        }
+
+        // Cross-server plugin search from stored logs
+        if (filter == GlobalSearchOverlay.SearchFilter.ALL || filter == GlobalSearchOverlay.SearchFilter.PLUGINS) {
+            try {
+                List<ServerLogData> logs = ServerLogReader.readAll();
+                for (ServerLogData log : logs) {
+                    for (String plugin : log.plugins) {
+                        if (plugin.toLowerCase().contains(query)) {
+                            String serverName = log.getDisplayName();
+                            results.add(new GlobalSearchOverlay.SearchResult(
+                                    "server_list", serverName, plugin, 0xFFFFAA00, true));
+                        }
+                    }
+                    // Also search brand in stored logs
+                    if ((filter == GlobalSearchOverlay.SearchFilter.ALL || filter == GlobalSearchOverlay.SearchFilter.BRAND)
+                            && log.brand != null && log.brand.toLowerCase().contains(query)) {
+                        results.add(new GlobalSearchOverlay.SearchResult(
+                                "server_list", log.getDisplayName(), "Brand: " + log.brand, 0xFFFFAA00, true));
+                    }
+                }
+            } catch (Exception ignored) {}
         }
 
         return results;

@@ -118,6 +118,58 @@ public final class RenderUtils {
         return text;
     }
 
+    // ── Highlighted Text ─────────────────────────────────────────────────────
+
+    /** Draw text with matching substring highlighted in a different color. */
+    public static void drawHighlightedText(GuiGraphics g, String text, String query, int x, int y,
+                                           int normalColor, int highlightColor, int maxWidth) {
+        if (query == null || query.isEmpty()) {
+            drawText(g, trimToWidth(text, maxWidth), x, y, normalColor);
+            return;
+        }
+        String lower = text.toLowerCase();
+        String queryLower = query.toLowerCase();
+        int currentX = x;
+        int lastEnd = 0;
+
+        while (lastEnd < text.length()) {
+            int matchIdx = lower.indexOf(queryLower, lastEnd);
+            if (matchIdx < 0) {
+                // Render remaining text
+                String remaining = text.substring(lastEnd);
+                if (currentX - x + scaledTextWidth(remaining) > maxWidth) {
+                    remaining = trimToWidth(remaining, maxWidth - (currentX - x));
+                }
+                drawText(g, remaining, currentX, y, normalColor);
+                break;
+            }
+
+            // Render text before match
+            if (matchIdx > lastEnd) {
+                String before = text.substring(lastEnd, matchIdx);
+                if (currentX - x + scaledTextWidth(before) > maxWidth) {
+                    before = trimToWidth(before, maxWidth - (currentX - x));
+                    drawText(g, before, currentX, y, normalColor);
+                    break;
+                }
+                drawText(g, before, currentX, y, normalColor);
+                currentX += scaledTextWidth(before);
+            }
+
+            // Render highlighted match
+            String match = text.substring(matchIdx, matchIdx + query.length());
+            if (currentX - x + scaledTextWidth(match) > maxWidth) {
+                match = trimToWidth(match, maxWidth - (currentX - x));
+                drawText(g, match, currentX, y, highlightColor);
+                break;
+            }
+            drawText(g, match, currentX, y, highlightColor);
+            currentX += scaledTextWidth(match);
+
+            lastEnd = matchIdx + query.length();
+        }
+    }
+
     // ── Text Wrapping ────────────────────────────────────────────────────────
 
     /** Split text into lines that each fit within maxWidth (word-breaking). */

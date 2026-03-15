@@ -31,8 +31,8 @@ public class CommandRegistry {
     }
 
     /**
-     * Dispatch a command string. The string should start with "!".
-     * @param input  full input string (e.g., "!export json")
+     * Dispatch a command string (with or without "!" prefix).
+     * @param input  full input string (e.g., "export json")
      * @param output callback to print response lines
      * @return true if a command was found and executed
      */

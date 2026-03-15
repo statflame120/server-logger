@@ -50,6 +50,7 @@ public class ScrollableList extends Widget {
     private double targetScrollOffset = 0;
     private double maxScroll = 0;
     private Consumer<Integer> onSelect;
+    private RightClickHandler onRightClick;
     private boolean autoScroll = false;
     private boolean draggingScrollbar = false;
     private double scrollbarDragStartY = 0;
@@ -202,9 +203,25 @@ public class ScrollableList extends Widget {
         }
     }
 
+    @FunctionalInterface
+    public interface RightClickHandler {
+        void onRightClick(ListItem item, int index, int mouseX, int mouseY);
+    }
+
     @Override
     public boolean onMouseClicked(double mouseX, double mouseY, int button) {
         if (!visible || !containsPoint(mouseX, mouseY)) return false;
+
+        // Right-click
+        if (button == 1 && onRightClick != null) {
+            int relY = (int) mouseY - y + (int) scrollOffset;
+            int idx = relY / ITEM_HEIGHT;
+            if (idx >= 0 && idx < items.size()) {
+                onRightClick.onRightClick(items.get(idx), idx, (int) mouseX, (int) mouseY);
+                return true;
+            }
+        }
+
         if (button == 0) {
             // Check if clicking on scrollbar track
             int scrollTrackX = x + width - 5;
@@ -358,11 +375,24 @@ public class ScrollableList extends Widget {
     }
 
     public void setOnSelect(Consumer<Integer> onSelect) { this.onSelect = onSelect; }
+    public void setOnRightClick(RightClickHandler handler) { this.onRightClick = handler; }
 
     public void setAutoScroll(boolean autoScroll) { this.autoScroll = autoScroll; }
 
     public void scrollToBottom() {
         scrollOffset = maxScroll;
         targetScrollOffset = maxScroll;
+    }
+
+    public void scrollToItem(int index) {
+        if (index < 0 || index >= items.size()) return;
+        int itemTop = index * ITEM_HEIGHT;
+        int itemBottom = itemTop + ITEM_HEIGHT;
+        if (itemTop < scrollOffset) {
+            targetScrollOffset = itemTop;
+        } else if (itemBottom > scrollOffset + height) {
+            targetScrollOffset = itemBottom - height;
+        }
+        autoScroll = false;
     }
 }

@@ -8,15 +8,15 @@ import java.util.function.Consumer;
  */
 public interface Command {
 
-    /** The command name (without the ! prefix). */
+    /** The command name. */
     String name();
 
-    /** Short description shown in !help output. */
+    /** Short description shown in help output. */
     String description();
 
     /**
      * Execute the command.
-     * @param args  arguments string (everything after "!command ")
+     * @param args  arguments string (everything after the command name)
      * @param output callback to print lines to the console output
      */
     void execute(String args, Consumer<String> output);

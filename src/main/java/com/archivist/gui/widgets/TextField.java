@@ -209,7 +209,7 @@ public class TextField extends Widget {
             case GLFW.GLFW_KEY_TAB -> {
                 if (autoCompleteProvider != null) {
                     String input = getText();
-                    if (!input.startsWith("!")) return false;
+                    if (input.isEmpty()) return false;
                     List<String> matches = autoCompleteProvider.apply(input.toLowerCase());
                     if (matches == null || matches.isEmpty()) return true;
                     if (matches.size() == 1) {
