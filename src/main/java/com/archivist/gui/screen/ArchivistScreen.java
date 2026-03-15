@@ -123,6 +123,11 @@ public class ArchivistScreen extends Screen {
         // Apply saved theme
         applyTheme(guiConfig.activeTheme);
 
+        // Sync animation setting — suppress animations during setup
+        ArchivistConfig extCfg = getExtConfig();
+        DraggableWindow.animationsEnabled = extCfg == null || extCfg.guiAnimations;
+        DraggableWindow.resetAnimReady();
+
         // ── Create Windows ──────────────────────────────────────────────────
         serverInfoWindow = createWindow("server_info", "Server Info", 10, 10, 200, 340);
         pluginListWindow = createWindow("plugin_list", "Plugins", 220, 10, 180, 240);
@@ -168,9 +173,10 @@ public class ArchivistScreen extends Screen {
         taskbarOrder.clear();
         taskbarOrder.addAll(windows);
 
-        // Give each window the full list for snapping
+        // Give each window the full list for snapping + taskbar reference
         for (DraggableWindow w : windows) {
             w.setAllWindows(windows);
+            w.setTaskbar(taskbar);
         }
 
         // Taskbar
@@ -483,6 +489,12 @@ public class ArchivistScreen extends Screen {
         generalTab.addChild(new CheckBox(0, 0, 200, "Search bar pop-up in Menu",
                 cfg == null || cfg.searchBarPopup,
                 v -> { if (cfg != null) { cfg.searchBarPopup = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "GUI Animations",
+                cfg == null || cfg.guiAnimations,
+                v -> {
+                    if (cfg != null) { cfg.guiAnimations = v; cfg.save(); }
+                    DraggableWindow.animationsEnabled = v;
+                }));
 
         GuiFingerprintEngine fpEngine = GuiFingerprintEngine.getInstance();
         generalTab.addChild(new CheckBox(0, 0, 200, "Auto GUI Inspect (adds a tiny delay to GUIs)",
@@ -1302,7 +1314,7 @@ public class ArchivistScreen extends Screen {
         // Update active state
         for (DraggableWindow w : windows) w.setActive(false);
         for (int i = windows.size() - 1; i >= 0; i--) {
-            if (windows.get(i).isVisible()) {
+            if (windows.get(i).isVisible() && !windows.get(i).isAnimating()) {
                 windows.get(i).setActive(true);
                 break;
             }

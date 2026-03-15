@@ -38,6 +38,18 @@ public class DraggableWindow extends Widget {
     // Snap constants
     private static final int SNAP_DISTANCE = 8;
 
+    // Animation constants
+    private static final float ANIM_SPEED = 0.1f; // ~10 frames at 60fps
+
+    // Animation state
+    public enum AnimState { NONE, OPENING, CLOSING }
+    private AnimState animState = AnimState.NONE;
+    private float animProgress = 1f;
+    public static boolean animationsEnabled = true;
+    private static boolean animationsReady = false;
+    private static int animReadyCountdown = 0;
+    private static final int ANIM_READY_DELAY = 5; // frames before animations activate
+
     private String title;
     private final List<Widget> children = new ArrayList<>();
     private boolean minimized = false;
@@ -58,6 +70,9 @@ public class DraggableWindow extends Widget {
     // Sibling windows for snapping
     private List<DraggableWindow> allWindows;
 
+    // Taskbar reference for animation target
+    private Taskbar taskbar;
+
     public DraggableWindow(String id, String title, int x, int y, int width, int height) {
         super(x, y, width, height);
         this.id = id;
@@ -69,13 +84,132 @@ public class DraggableWindow extends Widget {
         this.allWindows = windows;
     }
 
+    public void setTaskbar(Taskbar taskbar) {
+        this.taskbar = taskbar;
+    }
+
+    /** Call when the screen (re)initializes to suppress animations during setup. */
+    public static void resetAnimReady() {
+        animationsReady = false;
+        animReadyCountdown = ANIM_READY_DELAY;
+    }
+
     public void setOnClose(Runnable onClose) {
         this.onClose = onClose;
     }
 
     @Override
+    public void setVisible(boolean v) {
+        if (!animationsEnabled || !animationsReady) {
+            this.visible = v;
+            animState = AnimState.NONE;
+            animProgress = 1f;
+            return;
+        }
+        if (v) {
+            if (!this.visible || animState == AnimState.CLOSING) {
+                // Show: start opening animation (reverse if mid-close)
+                this.visible = true;
+                float reversedProgress = (animState == AnimState.CLOSING) ? 1f - animProgress : 0f;
+                animState = AnimState.OPENING;
+                animProgress = reversedProgress;
+            }
+        } else {
+            if (this.visible && animState != AnimState.CLOSING) {
+                // Hide: start closing animation (reverse if mid-open)
+                float reversedProgress = (animState == AnimState.OPENING) ? 1f - animProgress : 0f;
+                animState = AnimState.CLOSING;
+                animProgress = reversedProgress;
+            }
+        }
+    }
+
+    public boolean isAnimating() {
+        return animState != AnimState.NONE;
+    }
+
+    private float easeIn(float t) {
+        return t * t;
+    }
+
+    private float easeOut(float t) {
+        return 1f - (1f - t) * (1f - t);
+    }
+
+    @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
         if (!visible) return;
+
+        // Tick animation readiness countdown
+        if (!animationsReady && animReadyCountdown > 0) {
+            if (--animReadyCountdown <= 0) animationsReady = true;
+        }
+
+        // ── Animation update ─────────────────────────────────────────────────
+        if (animState != AnimState.NONE) {
+            animProgress += ANIM_SPEED;
+            if (animProgress >= 1f) {
+                animProgress = 1f;
+                if (animState == AnimState.CLOSING) {
+                    this.visible = false;
+                    animState = AnimState.NONE;
+                    return;
+                }
+                animState = AnimState.NONE;
+            }
+        }
+
+        // ── Animation transform ──────────────────────────────────────────────
+        boolean animating = animState != AnimState.NONE;
+        float scale = 1f;
+        float yOffset = 0f;
+
+        if (animating) {
+            int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+            int windowH = minimized ? TITLE_BAR_HEIGHT : height;
+            float centerX = x + width / 2f;
+            float centerY = y + windowH / 2f;
+
+            // Target: center of this window's taskbar button, or bottom-center fallback
+            float targetX = centerX;
+            float targetY = screenH;
+            if (taskbar != null) {
+                int[] btnCenter = taskbar.getButtonCenter(this);
+                if (btnCenter != null) {
+                    targetX = btnCenter[0];
+                    targetY = btnCenter[1];
+                }
+            }
+
+            float xOffset;
+            if (animState == AnimState.OPENING) {
+                float t = easeOut(animProgress);
+                scale = t;
+                xOffset = (targetX - centerX) * (1f - t);
+                yOffset = (targetY - centerY) * (1f - t);
+            } else { // CLOSING
+                float t = easeIn(animProgress);
+                scale = 1f - t;
+                xOffset = (targetX - centerX) * t;
+                yOffset = (targetY - centerY) * t;
+            }
+
+            if (scale < 0.01f) scale = 0.01f;
+
+            var pose = g.pose();
+            //? if >=1.21.6 {
+            pose.pushMatrix();
+            pose.translate(centerX + xOffset, centerY + yOffset);
+            pose.scale(scale, scale);
+            pose.translate(-centerX, -centerY);
+            //?} else {
+            /*pose.pushPose();
+            pose.translate(centerX + xOffset, centerY + yOffset, 0);
+            pose.scale(scale, scale, 1f);
+            pose.translate(-centerX, -centerY, 0);
+            *///?}
+        }
+
         updateHover(mouseX, mouseY);
         ColorScheme cs = ColorScheme.get();
 
@@ -108,6 +242,13 @@ public class DraggableWindow extends Widget {
             // Border around title bar only
             RenderUtils.drawBorder(g, x, y, width, TITLE_BAR_HEIGHT,
                     isActive ? cs.windowBorderActive() : cs.windowBorder());
+            if (animating) {
+                //? if >=1.21.6 {
+                g.pose().popMatrix();
+                //?} else {
+                /*g.pose().popPose();
+                *///?}
+            }
             return;
         }
 
@@ -182,6 +323,15 @@ public class DraggableWindow extends Widget {
         g.fill(cornerX + 3, cornerY + 4, cornerX + 5, cornerY + 5, cornerColor);
         g.fill(cornerX + 1, cornerY + 4, cornerX + 5, cornerY + 5, cornerColor);
         g.fill(cornerX + 3, cornerY + 2, cornerX + 5, cornerY + 3, cornerColor);
+
+        // ── Animation cleanup ────────────────────────────────────────────────
+        if (animating) {
+            //? if >=1.21.6 {
+            g.pose().popMatrix();
+            //?} else {
+            /*g.pose().popPose();
+            *///?}
+        }
     }
 
     private int computeContentHeight() {
@@ -203,7 +353,7 @@ public class DraggableWindow extends Widget {
 
     @Override
     public boolean onMouseClicked(double mouseX, double mouseY, int button) {
-        if (!visible || !containsPoint(mouseX, mouseY)) return false;
+        if (!visible || animState != AnimState.NONE || !containsPoint(mouseX, mouseY)) return false;
 
         // Close button
         if (closeable && button == 0) {
@@ -211,7 +361,7 @@ public class DraggableWindow extends Widget {
             int closeBtnY = y + 2;
             if (mouseX >= closeBtnX && mouseX < closeBtnX + CLOSE_BTN_SIZE
                     && mouseY >= closeBtnY && mouseY < closeBtnY + CLOSE_BTN_SIZE) {
-                visible = false;
+                setVisible(false);
                 if (onClose != null) onClose.run();
                 return true;
             }

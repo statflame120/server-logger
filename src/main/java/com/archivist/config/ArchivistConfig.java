@@ -43,6 +43,7 @@ public class ArchivistConfig {
     public boolean showHudSummary = true;
     public boolean showScanOverlay = true;
     public boolean searchBarPopup = true;
+    public boolean guiAnimations = true;
 
     // ── Custom adapter settings ─────────────────────────────────────────────
     public String customAdapterClasspath = "";
@@ -78,6 +79,7 @@ public class ArchivistConfig {
             if (obj.has("showHudSummary"))         showHudSummary        = obj.get("showHudSummary").getAsBoolean();
             if (obj.has("showScanOverlay"))       showScanOverlay       = obj.get("showScanOverlay").getAsBoolean();
             if (obj.has("searchBarPopup"))        searchBarPopup        = obj.get("searchBarPopup").getAsBoolean();
+            if (obj.has("guiAnimations"))         guiAnimations         = obj.get("guiAnimations").getAsBoolean();
             if (obj.has("customAdapterClasspath")) customAdapterClasspath = obj.get("customAdapterClasspath").getAsString();
             if (obj.has("customAdapterClassName")) customAdapterClassName = obj.get("customAdapterClassName").getAsString();
 
@@ -108,6 +110,7 @@ public class ArchivistConfig {
             obj.addProperty("showHudSummary",         showHudSummary);
             obj.addProperty("showScanOverlay",       showScanOverlay);
             obj.addProperty("searchBarPopup",        searchBarPopup);
+            obj.addProperty("guiAnimations",         guiAnimations);
             obj.addProperty("customAdapterClasspath", customAdapterClasspath);
             obj.addProperty("customAdapterClassName", customAdapterClassName);
 

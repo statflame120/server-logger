@@ -135,6 +135,26 @@ public class Taskbar extends Widget {
         return activeWindow;
     }
 
+    /** Returns the center {x, y} of the taskbar button for the given window, or null if not found. */
+    public int[] getButtonCenter(DraggableWindow target) {
+        if (windows == null) return null;
+        int bx = x + BUTTON_PADDING;
+        int by = y + 3;
+        int btnH = TASKBAR_HEIGHT - 6;
+
+        for (DraggableWindow window : windows) {
+            String title = window.getTitle();
+            int btnW = RenderUtils.scaledTextWidth(title) + 12;
+            if (btnW < 40) btnW = 40;
+
+            if (window == target) {
+                return new int[]{ bx + btnW / 2, by + btnH / 2 };
+            }
+            bx += btnW + BUTTON_SPACING;
+        }
+        return null;
+    }
+
     @Override
     public boolean containsPoint(double px, double py) {
         return visible && px >= x && px < x + width && py >= y && py < y + height;
