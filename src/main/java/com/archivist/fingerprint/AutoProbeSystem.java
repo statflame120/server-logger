@@ -3,6 +3,7 @@ package com.archivist.fingerprint;
 import com.archivist.ArchivistMod;
 import com.archivist.data.EventBus;
 import com.archivist.data.LogEvent;
+import com.archivist.gui.screen.ArchivistScreen;
 import com.archivist.util.ArchivistExecutor;
 import com.google.gson.*;
 import net.fabricmc.loader.api.FabricLoader;
@@ -34,6 +35,7 @@ public class AutoProbeSystem {
     private int probeSyncId = -1;
     private int guisOpened = 0;
     private int pluginsFound = 0;
+    private String lastSentCommand = "?";
 
     // Delay before starting
     private int startDelayTicks = 0;
@@ -45,6 +47,7 @@ public class AutoProbeSystem {
     }
 
     public boolean isProbing() { return probing; }
+    public boolean isAwaitingGui() { return probing && awaitingCapture; }
 
     public void startProbing(List<String> commands) {
         if (probing) return;
@@ -91,10 +94,14 @@ public class AutoProbeSystem {
                 }
             } else if (captureWaitCounter >= TIMEOUT_TICKS) {
                 // No GUI opened, skip
-                String cmd = currentCommandIndex > 0 ? probeCommands.get(currentCommandIndex - 1) : "?";
-                EventBus.post(LogEvent.Type.SYSTEM, "[PROBE] No GUI from " + cmd);
+                EventBus.post(LogEvent.Type.SYSTEM, "[PROBE] No GUI from " + lastSentCommand);
                 advanceToNext();
             }
+            return;
+        }
+
+        // Don't send commands while user has a screen open
+        if (mc.screen != null && !(mc.screen instanceof ArchivistScreen)) {
             return;
         }
 
@@ -107,6 +114,7 @@ public class AutoProbeSystem {
 
     public void onGuiOpened(int syncId) {
         if (!probing || !awaitingCapture) return;
+        if (captureWaitCounter > 5) return; // Too late — likely user action, not probe response
         probeSyncId = syncId;
         guisOpened++;
     }
@@ -133,6 +141,7 @@ public class AutoProbeSystem {
 
         String command = probeCommands.get(currentCommandIndex);
         currentCommandIndex++;
+        lastSentCommand = command;
         tickCounter = 0;
         captureWaitCounter = 0;
         awaitingCapture = true;

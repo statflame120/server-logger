@@ -51,11 +51,15 @@ public class CheckBox extends Widget {
         int knobColor = checked ? 0xFFFFFFFF : cs.textSecondary();
         RenderUtils.drawRect(g, knobX, knobY, knobSize, knobSize, knobColor);
 
-        // Label text
+        // Label text (wrapping)
         int textX = x + pillW + 4;
-        int textY = y + (height - RenderUtils.scaledFontHeight()) / 2;
+        int textMaxW = width - pillW - 4;
         int textColor = hovered ? cs.textPrimary() : cs.textSecondary();
-        RenderUtils.drawText(g, label, textX, textY, textColor);
+        int textH = RenderUtils.wrappedTextHeight(label, textMaxW);
+        int newHeight = Math.max(12, textH + 2);
+        if (newHeight != height) height = newHeight;
+        int textY = y + (height - textH) / 2;
+        RenderUtils.drawWrappedText(g, label, textX, textY, textMaxW, textColor);
     }
 
     @Override

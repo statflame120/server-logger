@@ -37,7 +37,7 @@ public class GuiFingerprintEngine {
     private String pendingTitleRaw = "";
 
     // Inspector mode
-    private boolean inspectorEnabled = false;
+    private boolean inspectorEnabled = true;
     private GuiCapture lastInspectorCapture = null;
 
     public static GuiFingerprintEngine getInstance() {

@@ -156,7 +156,19 @@ public class ScanProgressOverlay {
      * Calculate estimated total scan ticks based on current config and runtime state.
      */
     public static int estimateTotalTicks(com.mojang.brigadier.CommandDispatcher<?> dispatcher) {
-        int ticks = 20; // base scan (command tree is near-instant, tab-complete ~1s)
+        int ticks = 0;
+
+        // Check if tab-complete probe will run (skipped when >15 plugins found from command tree)
+        java.util.Set<String> namespaces = new java.util.HashSet<>();
+        dispatcher.getRoot().getChildren().forEach(node -> {
+            String[] parts = node.getName().split(":", 2);
+            if (parts.length == 2 && !parts[0].isEmpty()) {
+                namespaces.add(parts[0]);
+            }
+        });
+        if (namespaces.size() <= 15) {
+            ticks += 20; // tab-complete round-trip ~1s
+        }
 
         // Auto-probe estimate (filtered to commands actually on this server)
         int probeCommands = com.archivist.fingerprint.SmartProber.countAvailableProbes(dispatcher);

@@ -3,6 +3,9 @@ package com.archivist.gui.render;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Static drawing helpers used by all widgets.
  * Handles Stonecutter version compatibility for matrix operations.
@@ -113,6 +116,85 @@ public final class RenderUtils {
             }
         }
         return text;
+    }
+
+    // ── Text Wrapping ────────────────────────────────────────────────────────
+
+    /** Split text into lines that each fit within maxWidth (word-breaking). */
+    public static List<String> wrapText(String text, int maxWidth) {
+        List<String> lines = new ArrayList<>();
+        if (text == null || text.isEmpty() || maxWidth <= 0) {
+            lines.add(text != null ? text : "");
+            return lines;
+        }
+
+        String[] words = text.split(" ");
+        StringBuilder currentLine = new StringBuilder();
+
+        for (String word : words) {
+            if (currentLine.isEmpty()) {
+                // First word on this line — force it even if too wide
+                if (scaledTextWidth(word) > maxWidth) {
+                    // Character-break long words
+                    for (int i = 0; i < word.length(); i++) {
+                        String test = currentLine.toString() + word.charAt(i);
+                        if (scaledTextWidth(test) > maxWidth && !currentLine.isEmpty()) {
+                            lines.add(currentLine.toString());
+                            currentLine = new StringBuilder();
+                        }
+                        currentLine.append(word.charAt(i));
+                    }
+                } else {
+                    currentLine.append(word);
+                }
+            } else {
+                String test = currentLine + " " + word;
+                if (scaledTextWidth(test) > maxWidth) {
+                    lines.add(currentLine.toString());
+                    currentLine = new StringBuilder();
+                    // Handle word that's wider than maxWidth
+                    if (scaledTextWidth(word) > maxWidth) {
+                        for (int i = 0; i < word.length(); i++) {
+                            String charTest = currentLine.toString() + word.charAt(i);
+                            if (scaledTextWidth(charTest) > maxWidth && !currentLine.isEmpty()) {
+                                lines.add(currentLine.toString());
+                                currentLine = new StringBuilder();
+                            }
+                            currentLine.append(word.charAt(i));
+                        }
+                    } else {
+                        currentLine.append(word);
+                    }
+                } else {
+                    currentLine.append(" ").append(word);
+                }
+            }
+        }
+
+        if (!currentLine.isEmpty()) {
+            lines.add(currentLine.toString());
+        }
+
+        if (lines.isEmpty()) {
+            lines.add("");
+        }
+
+        return lines;
+    }
+
+    /** Draw text with word wrapping. Returns the total height used. */
+    public static int drawWrappedText(GuiGraphics g, String text, int x, int y, int maxWidth, int color) {
+        List<String> lines = wrapText(text, maxWidth);
+        int lineH = scaledFontHeight();
+        for (int i = 0; i < lines.size(); i++) {
+            drawText(g, lines.get(i), x, y + i * lineH, color);
+        }
+        return lines.size() * lineH;
+    }
+
+    /** Calculate the total height wrapped text would occupy. */
+    public static int wrappedTextHeight(String text, int maxWidth) {
+        return wrapText(text, maxWidth).size() * scaledFontHeight();
     }
 
     // ── Scissor ─────────────────────────────────────────────────────────────

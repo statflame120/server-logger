@@ -26,6 +26,7 @@ import com.archivist.gui.widgets.Label;
 import com.archivist.gui.widgets.TextField;
 import com.archivist.fingerprint.*;
 import com.archivist.scraper.GuiScraper;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -86,6 +87,7 @@ public class ArchivistScreen extends Screen {
     private GuiCapture lastBuiltCapture;
 
     private final Screen parent;
+    private boolean closedIntentionally = false;
 
     public ArchivistScreen() {
         this(null);
@@ -105,6 +107,12 @@ public class ArchivistScreen extends Screen {
 
     @Override
     protected void init() {
+        // Propagate resize to parent so it renders correctly underneath
+        if (parent != null) {
+            parent.width = width;
+            parent.height = height;
+        }
+
         windows.clear();
 
         // Load GUI config for window positions
@@ -396,12 +404,8 @@ public class ArchivistScreen extends Screen {
 
         consoleOutput.addItem("> " + input, ColorScheme.get().textPrimary());
 
-        if (input.startsWith("!")) {
-            Consumer<String> output = line -> consoleOutput.addItem(line, ColorScheme.get().eventSystem());
-            CommandRegistry.dispatch(input, output);
-        } else {
-            consoleOutput.addItem("Commands must start with ! (e.g., !help)", ColorScheme.get().eventError());
-        }
+        Consumer<String> output = line -> consoleOutput.addItem(line, ColorScheme.get().eventSystem());
+        CommandRegistry.dispatch(input, output);
 
         consoleInput.clear();
     }
@@ -421,12 +425,18 @@ public class ArchivistScreen extends Screen {
 
         // ── General Tab ─────────────────────────────────────────────────────
         Panel generalTab = tabs.addTab("General");
-        generalTab.addChild(new Label(0, 0, 200, "Keybind: Z (hardcoded)", ColorScheme.get().textSecondary()));
+        String keyName = ArchivistMod.INSTANCE != null
+                ? KeyBindingHelper.getBoundKeyOf(ArchivistMod.INSTANCE.openGuiKey).getDisplayName().getString()
+                : "Z";
+        generalTab.addChild(new Label(0, 0, 200, "Keybind: " + keyName + " (rebind in Options > Controls)", ColorScheme.get().textSecondary()));
 
         ArchivistConfig cfg = getExtConfig();
-        generalTab.addChild(new CheckBox(0, 0, 200, "Auto-scrape on join",
-                cfg == null || cfg.autoScrapeOnJoin,
+        generalTab.addChild(new CheckBox(0, 0, 200, "Auto probe GUIs on join (breaks buttons for 2 seconds)",
+                cfg != null && cfg.autoScrapeOnJoin,
                 v -> { if (cfg != null) { cfg.autoScrapeOnJoin = v; cfg.save(); } }));
+        generalTab.addChild(new CheckBox(0, 0, 200, "Smart probe GUIs (only if survival items found)",
+                cfg == null || cfg.smartProbeOnJoin,
+                v -> { if (cfg != null) { cfg.smartProbeOnJoin = v; cfg.save(); } }));
         generalTab.addChild(new CheckBox(0, 0, 200, "Silent scraper (hide chat)",
                 cfg == null || cfg.silentScraper,
                 v -> {
@@ -1179,6 +1189,11 @@ public class ArchivistScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
+        // ── Layer 0: Render parent screen underneath ──
+        if (parent != null) {
+            parent.render(g, -1, -1, delta);
+        }
+
         // ── Layer 1: Screen overlay ──
         g.fill(0, 0, width, height, ColorScheme.get().screenOverlay());
 
@@ -1415,6 +1430,12 @@ public class ArchivistScreen extends Screen {
     // ══════════════════════════════════════════════════════════════════════════
 
     private boolean handleKeyPressed(int keyCode, int scanCode, int modifiers) {
+        // Bound key toggles the screen closed
+        if (ArchivistMod.INSTANCE != null && keyCode == KeyBindingHelper.getBoundKeyOf(ArchivistMod.INSTANCE.openGuiKey).getValue()) {
+            onClose();
+            return true;
+        }
+
         // Popup layer intercepts first (Escape closes popup)
         if (PopupLayer.keyPressed(keyCode, scanCode, modifiers)) return true;
 
@@ -1555,6 +1576,8 @@ public class ArchivistScreen extends Screen {
 
     @Override
     public void onClose() {
+        ArchivistMod.LOGGER.info("[Archivist DEBUG] onClose() called", new Throwable("stack trace"));
+        closedIntentionally = true;
         saveWindowStates();
         if (parent != null) {
             Minecraft.getInstance().setScreen(parent);
@@ -1565,6 +1588,21 @@ public class ArchivistScreen extends Screen {
 
     @Override
     public void removed() {
+        ArchivistMod.LOGGER.info("[Archivist DEBUG] removed() called, closedIntentionally={}, newScreen={}",
+                closedIntentionally,
+                Minecraft.getInstance().screen != null ? Minecraft.getInstance().screen.getClass().getSimpleName() : "null",
+                new Throwable("stack trace"));
+        if (!closedIntentionally) {
+            // Screen was forcibly replaced (e.g., server opened a container)
+            // Re-open Archivist on top of the new screen on next tick
+            Minecraft mc = Minecraft.getInstance();
+            Screen newScreen = mc.screen;
+            mc.execute(() -> {
+                if (mc.screen == newScreen && !(newScreen instanceof ArchivistScreen)) {
+                    mc.setScreen(new ArchivistScreen(newScreen));
+                }
+            });
+        }
         saveWindowStates();
         super.removed();
     }

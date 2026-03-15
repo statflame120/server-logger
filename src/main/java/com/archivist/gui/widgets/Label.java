@@ -31,8 +31,9 @@ public class Label extends Widget {
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
         if (!visible || text == null || text.isEmpty()) return;
         int c = useThemeColor ? ColorScheme.get().textPrimary() : color;
-        String display = RenderUtils.trimToWidth(text, width);
-        RenderUtils.drawText(g, display, x, y + 1, c);
+        int newHeight = RenderUtils.wrappedTextHeight(text, width);
+        if (newHeight != height) height = Math.max(newHeight + 2, RenderUtils.scaledFontHeight() + 2);
+        RenderUtils.drawWrappedText(g, text, x, y + 1, width, c);
     }
 
     public String getText() { return text; }

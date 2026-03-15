@@ -24,7 +24,8 @@ public class ArchivistConfig {
             "/ah", "/ec", "/shop", "/sell", "/pv", "/backpack", "/orders"
     ));
     public int scraperDelay = 1000;         // ms between commands
-    public boolean autoScrapeOnJoin = true;
+    public boolean autoScrapeOnJoin = false;
+    public boolean smartProbeOnJoin = true;
     public boolean silentScraper = true;
 
     // ── Database settings ───────────────────────────────────────────────────
@@ -64,6 +65,7 @@ public class ArchivistConfig {
             }
             if (obj.has("scraperDelay"))          scraperDelay          = obj.get("scraperDelay").getAsInt();
             if (obj.has("autoScrapeOnJoin"))       autoScrapeOnJoin      = obj.get("autoScrapeOnJoin").getAsBoolean();
+            if (obj.has("smartProbeOnJoin"))        smartProbeOnJoin      = obj.get("smartProbeOnJoin").getAsBoolean();
             if (obj.has("silentScraper"))          silentScraper         = obj.get("silentScraper").getAsBoolean();
             if (obj.has("databaseAdapterType"))    databaseAdapterType   = obj.get("databaseAdapterType").getAsString();
             if (obj.has("databaseConnectionString")) databaseConnectionString = obj.get("databaseConnectionString").getAsString();
@@ -92,6 +94,7 @@ public class ArchivistConfig {
 
             obj.addProperty("scraperDelay",           scraperDelay);
             obj.addProperty("autoScrapeOnJoin",       autoScrapeOnJoin);
+            obj.addProperty("smartProbeOnJoin",       smartProbeOnJoin);
             obj.addProperty("silentScraper",          silentScraper);
             obj.addProperty("databaseAdapterType",    databaseAdapterType);
             obj.addProperty("databaseConnectionString", databaseConnectionString);

@@ -2,10 +2,13 @@ package com.archivist.scraper;
 
 import com.archivist.ArchivistMod;
 import com.archivist.config.ArchivistConfig;
+import com.archivist.gui.screen.ArchivistScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.*;
@@ -44,6 +47,7 @@ public class GuiScraper {
     private String statusMessage = "Idle";
     private AbstractContainerMenu pendingMenu = null;
     private boolean silentMode = false;
+    private boolean smartMode = false;
 
     // Delayed start (for auto-scrape on join)
     private int startDelayTicks = 0;
@@ -59,6 +63,10 @@ public class GuiScraper {
 
     public boolean isActive() {
         return state != State.IDLE && state != State.DONE;
+    }
+
+    public boolean isWaitingForScreen() {
+        return state == State.WAITING_FOR_SCREEN;
     }
 
     public String getStatusMessage() {
@@ -124,6 +132,19 @@ public class GuiScraper {
             if (startDelayTicks <= 0 && pendingStartCommands != null) {
                 List<String> cmds = pendingStartCommands;
                 pendingStartCommands = null;
+
+                // Smart mode: check inventory for survival items before starting
+                if (smartMode) {
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.player == null || !hasSurvivalItems(mc.player)) {
+                        ArchivistMod.LOGGER.info("[Archivist] Smart probe: no survival items found, skipping");
+                        statusMessage = "Skipped (no survival items)";
+                        smartMode = false;
+                        return;
+                    }
+                    ArchivistMod.LOGGER.info("[Archivist] Smart probe: survival items found, starting");
+                }
+
                 start(cmds);
             }
             return;
@@ -144,7 +165,13 @@ public class GuiScraper {
                 if (pendingMenu != null) {
                     // Screen opened: extract items
                     state = State.EXTRACTING;
-                    extractItems(mc);
+                    try {
+                        extractItems(mc);
+                    } catch (Exception e) {
+                        ArchivistMod.LOGGER.warn("[Archivist] Scraper extract failed for {}: {}", currentCommand, e.getMessage());
+                        results.add(new ScrapeResult(currentCommand, Collections.emptyList()));
+                        startDelay();
+                    }
                 } else if (timeoutTicks >= TIMEOUT_TICKS) {
                     // Timeout: command didn't open a screen, skip
                     ArchivistMod.LOGGER.info("[Archivist] Scraper timeout for {}", currentCommand);
@@ -185,6 +212,9 @@ public class GuiScraper {
     public void setSilentMode(boolean silent) { this.silentMode = silent; }
     public boolean isSilentMode() { return silentMode; }
 
+    /** Enable/disable smart mode (only probe if survival items found in inventory). */
+    public void setSmartMode(boolean smart) { this.smartMode = smart; }
+
     /** Reset to idle state. */
     public void reset() {
         state = State.IDLE;
@@ -195,6 +225,7 @@ public class GuiScraper {
         startDelayTicks = 0;
         pendingStartCommands = null;
         silentMode = false;
+        smartMode = false;
         statusMessage = "Idle";
     }
 
@@ -204,6 +235,11 @@ public class GuiScraper {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.getConnection() == null) {
             state = State.DONE;
+            return;
+        }
+
+        // Don't send commands while user has a screen open
+        if (mc.screen != null && !(mc.screen instanceof ArchivistScreen)) {
             return;
         }
 
@@ -323,6 +359,28 @@ public class GuiScraper {
         statusMessage = "Done: " + identifiedPlugins.size() + " plugin(s) found across "
                 + results.size() + " commands";
         ArchivistMod.LOGGER.info("[Archivist] Scrape complete: {}", statusMessage);
+    }
+
+    private boolean hasSurvivalItems(Player player) {
+        // Iterate main inventory (slots 0-35) + offhand (slot 40)
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.isEmpty()) continue;
+            String id = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+            // Tools
+            if (id.contains("_pickaxe") || id.contains("_axe") || id.contains("_shovel") || id.contains("_hoe")) {
+                return true;
+            }
+            // Lighting
+            if (id.endsWith(":torch") || id.endsWith(":soul_torch") || id.endsWith(":lantern") || id.endsWith(":soul_lantern")) {
+                return true;
+            }
+            // Building blocks (64+)
+            if (stack.getItem() instanceof BlockItem && stack.getCount() >= 64) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private ArchivistConfig getConfig() {

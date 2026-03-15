@@ -37,8 +37,9 @@ public class CommandRegistry {
      * @return true if a command was found and executed
      */
     public static boolean dispatch(String input, Consumer<String> output) {
-        if (input == null || !input.startsWith("!")) return false;
-        String stripped = input.substring(1).trim();
+        if (input == null) return false;
+        // Accept commands with or without "!" prefix
+        String stripped = input.startsWith("!") ? input.substring(1).trim() : input.trim();
         if (stripped.isEmpty()) return false;
 
         String[] parts = stripped.split("\\s+", 2);
@@ -47,14 +48,14 @@ public class CommandRegistry {
 
         Command cmd = commands.get(cmdName);
         if (cmd == null) {
-            output.accept("Unknown command: !" + cmdName + ". Type !help for a list.");
+            output.accept("Unknown command: " + cmdName + ". Type help for a list.");
             return true;
         }
 
         try {
             cmd.execute(args, output);
         } catch (Exception e) {
-            output.accept("Error executing !" + cmdName + ": " + e.getMessage());
+            output.accept("Error executing " + cmdName + ": " + e.getMessage());
         }
         return true;
     }
@@ -66,12 +67,12 @@ public class CommandRegistry {
 
     /** Get command completions for the given input prefix (for tab-complete). */
     public static List<String> getCompletions(String input) {
-        if (input == null || !input.startsWith("!")) return Collections.emptyList();
-        String prefix = input.substring(1).toLowerCase(Locale.ROOT).trim();
+        if (input == null) return Collections.emptyList();
+        String prefix = (input.startsWith("!") ? input.substring(1) : input).toLowerCase(Locale.ROOT).trim();
         List<String> matches = new ArrayList<>();
         for (String name : commands.keySet()) {
             if (name.startsWith(prefix)) {
-                matches.add("!" + name);
+                matches.add(name);
             }
         }
         return matches;

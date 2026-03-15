@@ -45,7 +45,7 @@ public class ArchivistMod implements ClientModInitializer {
     public final ApiSyncManager      apiSyncManager     = new ApiSyncManager(apiConfig);
     public final GuiConfig           guiConfig          = new GuiConfig();
 
-    private KeyMapping openGuiKey;
+    public KeyMapping openGuiKey;
     private boolean guiKeyWasDown = false;
 
     @Override
@@ -96,6 +96,12 @@ public class ArchivistMod implements ClientModInitializer {
                     guiScraper.setSilentMode(true);
                 }
                 guiScraper.startDelayed(extendedConfig.scraperCommands, 100);
+            } else if (extendedConfig.smartProbeOnJoin && !guiScraper.isActive()) {
+                if (extendedConfig.silentScraper) {
+                    guiScraper.setSilentMode(true);
+                }
+                guiScraper.setSmartMode(true);
+                guiScraper.startDelayed(extendedConfig.scraperCommands, 100);
             }
         });
 
@@ -123,9 +129,9 @@ public class ArchivistMod implements ClientModInitializer {
                 client.setScreen(new ArchivistScreen());
             }
 
-            // Also allow opening from title/multiplayer screens (key mappings don't fire on screens)
-            if (client.screen instanceof TitleScreen || client.screen instanceof JoinMultiplayerScreen) {
-                boolean keyDown = GLFW.glfwGetKey(GLFW.glfwGetCurrentContext(), GLFW.GLFW_KEY_Z) == GLFW.GLFW_PRESS;
+            // Allow opening from any screen (key mappings don't fire when screens are open)
+            if (client.screen != null && !(client.screen instanceof ArchivistScreen)) {
+                boolean keyDown = GLFW.glfwGetKey(GLFW.glfwGetCurrentContext(), KeyBindingHelper.getBoundKeyOf(openGuiKey).getValue()) == GLFW.GLFW_PRESS;
                 if (keyDown && !guiKeyWasDown) {
                     client.setScreen(new ArchivistScreen(client.screen));
                 }

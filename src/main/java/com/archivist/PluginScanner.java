@@ -24,7 +24,7 @@ public class PluginScanner {
     private boolean commandTreeProcessed = false;
     private boolean scanFinished         = false;
     private int     ticks                = 0;
-    private int     suggestionId         = -1;
+    private volatile int suggestionId     = -1;
     private String  versionAlias         = null;
 
     private static final Set<String> IGNORED_NAMESPACES = Set.of(
