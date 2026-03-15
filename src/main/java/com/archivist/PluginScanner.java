@@ -28,7 +28,7 @@ public class PluginScanner {
     private String  versionAlias         = null;
 
     private static final Set<String> IGNORED_NAMESPACES = Set.of(
-            "minecraft", "fabric", "fabric-api", "fabricloader", "java", "c"
+            "minecraft", "fabric", "fabric-api", "fabricloader", "java", "c", "bukkit"
     );
 
     private static final Set<String> VERSION_ALIASES = Set.of(
@@ -78,6 +78,18 @@ public class PluginScanner {
     public void onRegistryNamespace(String ns) {
         if (ns == null || IGNORED_NAMESPACES.contains(ns)) return;
         pendingRegistryNamespaces.add(ns);
+    }
+
+    /** Check if name looks like a subcommand of an already-known plugin (e.g. "plugin_subcommand"). */
+    private boolean isSubcommandOf(String name, List<String> knownPlugins) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        for (String known : knownPlugins) {
+            String kLower = known.toLowerCase(java.util.Locale.ROOT);
+            if (lower.startsWith(kLower + "_") || lower.startsWith(kLower + ":")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void resolveAndAdd(String ns, List<String> target, boolean glossaryOnly) {
@@ -143,10 +155,19 @@ public class PluginScanner {
 
         tabCompletePlugins.clear();
         if (!packet.toSuggestions().isEmpty()) {
+            PluginGlossary dict = (ArchivistMod.INSTANCE != null)
+                    ? ArchivistMod.INSTANCE.pluginGlossary : null;
             for (Suggestion s : packet.toSuggestions().getList()) {
                 String name = s.getText();
                 if (name != null && !name.isBlank()) {
-                    tabCompletePlugins.add(name);
+                    // Skip subcommand-style entries (e.g. "invseeplus_clear" when "invseeplus" already found)
+                    if (isSubcommandOf(name, commandTreePlugins)) continue;
+                    // Resolve through glossary; skip if resolves to an already-known plugin
+                    String resolved = (dict != null) ? dict.lookup(name) : null;
+                    String toAdd = (resolved != null) ? resolved : name;
+                    if (!commandTreePlugins.contains(toAdd)) {
+                        tabCompletePlugins.add(toAdd);
+                    }
                 }
             }
             ArchivistMod.LOGGER.info("[Archivist] Tab-complete plugins: {}", tabCompletePlugins);
@@ -185,11 +206,20 @@ public class PluginScanner {
         active = false;
         ticks  = 0;
 
+        Set<String> raw = new LinkedHashSet<>();
+        raw.addAll(commandTreePlugins);
+        raw.addAll(tabCompletePlugins);
+        raw.addAll(channelPlugins);
+        raw.addAll(registryPlugins);
+
+        // Post-merge: resolve all entries through glossary and dedup
+        PluginGlossary dict = (ArchivistMod.INSTANCE != null)
+                ? ArchivistMod.INSTANCE.pluginGlossary : null;
         Set<String> merged = new LinkedHashSet<>();
-        merged.addAll(commandTreePlugins);
-        merged.addAll(tabCompletePlugins);
-        merged.addAll(channelPlugins);
-        merged.addAll(registryPlugins);
+        for (String name : raw) {
+            String resolved = (dict != null) ? dict.lookup(name) : null;
+            merged.add(resolved != null ? resolved : name);
+        }
 
         scanFinished = true;
 

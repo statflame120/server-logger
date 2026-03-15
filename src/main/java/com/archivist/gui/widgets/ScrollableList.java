@@ -379,6 +379,17 @@ public class ScrollableList extends Widget {
 
     public void setAutoScroll(boolean autoScroll) { this.autoScroll = autoScroll; }
 
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || !containsPoint(px, py)) return null;
+        int relY = (int) py - y + (int) scrollOffset;
+        int idx = relY / ITEM_HEIGHT;
+        if (idx >= 0 && idx < items.size()) {
+            return items.get(idx).text;
+        }
+        return null;
+    }
+
     public void scrollToBottom() {
         scrollOffset = maxScroll;
         targetScrollOffset = maxScroll;

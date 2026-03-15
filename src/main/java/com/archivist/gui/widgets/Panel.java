@@ -208,6 +208,18 @@ public class Panel extends Widget {
     }
 
     public void resetScroll() { scrollOffset = 0; }
+
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible) return null;
+        for (int i = children.size() - 1; i >= 0; i--) {
+            Widget child = children.get(i);
+            if (!child.isVisible()) continue;
+            String text = child.getTextAtPoint(px, py);
+            if (text != null) return text;
+        }
+        return null;
+    }
     public void setPadding(int padding) { this.padding = padding; }
     public void setSpacing(int spacing) { this.spacing = spacing; }
 }

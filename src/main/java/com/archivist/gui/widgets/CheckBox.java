@@ -81,4 +81,10 @@ public class CheckBox extends Widget {
     }
 
     public void setLabel(String label) { this.label = label; }
+
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || label == null || label.isEmpty()) return null;
+        return containsPoint(px, py) ? label : null;
+    }
 }

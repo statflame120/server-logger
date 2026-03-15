@@ -1,5 +1,6 @@
 package com.archivist.gui.render;
 
+import com.archivist.gui.widgets.TextSelectionManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -58,6 +59,7 @@ public final class RenderUtils {
         pose.pushMatrix();
         pose.translate(x, y);
         pose.scale(s, s);
+        TextSelectionManager.checkAndHighlight(g, text, x, y, s);
         g.drawString(font, text, 0, 0, color, shadow);
         pose.popMatrix();
         //?} else {
@@ -65,6 +67,7 @@ public final class RenderUtils {
         pose.pushPose();
         pose.translate(x, y, 0);
         pose.scale(s, s, 1.0f);
+        TextSelectionManager.checkAndHighlight(g, text, x, y, s);
         g.drawString(font, text, 0, 0, color, shadow);
         pose.popPose();
         *///?}
@@ -78,6 +81,7 @@ public final class RenderUtils {
         pose.pushMatrix();
         pose.translate(x, y);
         pose.scale(scale, scale);
+        TextSelectionManager.checkAndHighlight(g, text, x, y, scale);
         g.drawString(font, text, 0, 0, color, true);
         pose.popMatrix();
         //?} else {
@@ -85,6 +89,7 @@ public final class RenderUtils {
         pose.pushPose();
         pose.translate(x, y, 0);
         pose.scale(scale, scale, 1.0f);
+        TextSelectionManager.checkAndHighlight(g, text, x, y, scale);
         g.drawString(font, text, 0, 0, color, true);
         pose.popPose();
         *///?}

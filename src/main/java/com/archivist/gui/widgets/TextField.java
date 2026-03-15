@@ -200,7 +200,7 @@ public class TextField extends Widget {
                 }
             }
             case GLFW.GLFW_KEY_C -> {
-                if (ctrl) {
+                if (ctrl && !text.isEmpty()) {
                     net.minecraft.client.Minecraft.getInstance()
                             .keyboardHandler.setClipboard(text);
                     return true;
@@ -298,5 +298,11 @@ public class TextField extends Widget {
 
     public void setOnShowSuggestions(Consumer<List<String>> callback) {
         this.onShowSuggestions = callback;
+    }
+
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || text == null || text.isEmpty()) return null;
+        return containsPoint(px, py) ? text : null;
     }
 }

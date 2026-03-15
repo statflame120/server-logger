@@ -174,6 +174,15 @@ public class TabContainer extends Widget {
         return false;
     }
 
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible) return null;
+        if (activeTab >= 0 && activeTab < tabPanels.size()) {
+            return tabPanels.get(activeTab).getTextAtPoint(px, py);
+        }
+        return null;
+    }
+
     public int getActiveTab() { return activeTab; }
     public void setActiveTab(int index) {
         if (index >= 0 && index < tabNames.size()) activeTab = index;

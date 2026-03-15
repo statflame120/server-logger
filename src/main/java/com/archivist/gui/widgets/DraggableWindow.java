@@ -216,9 +216,11 @@ public class DraggableWindow extends Widget {
         // ── Title Bar ───────────────────────────────────────────────────────
         RenderUtils.drawRect(g, x, y, width, TITLE_BAR_HEIGHT, cs.titleBar());
 
-        // Title text
+        // Title text (not selectable)
         String displayTitle = RenderUtils.trimToWidth(title, width - CLOSE_BTN_SIZE - MIN_BTN_SIZE - 12);
+        TextSelectionManager.setEnabled(false);
         RenderUtils.drawText(g, displayTitle, x + 4, y + (TITLE_BAR_HEIGHT - RenderUtils.scaledFontHeight()) / 2, cs.titleText());
+        TextSelectionManager.setEnabled(true);
 
         // Close button (X)
         if (closeable) {
@@ -644,6 +646,21 @@ public class DraggableWindow extends Widget {
     public void setCloseable(boolean closeable) { this.closeable = closeable; }
     public void scrollToBottom() { scrollOffset = maxScroll; }
     public void resetScroll() { scrollOffset = 0; }
+
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || animState != AnimState.NONE) return null;
+        // Content area — delegate to children (title excluded per user request)
+        if (!minimized && py >= y + TITLE_BAR_HEIGHT && py < y + height && px >= x && px < x + width) {
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Widget child = children.get(i);
+                if (!child.isVisible()) continue;
+                String text = child.getTextAtPoint(px, py);
+                if (text != null) return text;
+            }
+        }
+        return null;
+    }
 
     /** Bring this window to front in its parent list. */
     public void bringToFront() {

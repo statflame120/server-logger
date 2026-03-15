@@ -38,6 +38,12 @@ public class Label extends Widget {
 
     public String getText() { return text; }
 
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || text == null || text.isEmpty()) return null;
+        return containsPoint(px, py) ? text : null;
+    }
+
     public void setText(String text) {
         this.text = text;
     }

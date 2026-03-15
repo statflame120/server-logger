@@ -77,4 +77,10 @@ public class Button extends Widget {
     public void setOnClick(Runnable onClick) { this.onClick = onClick; }
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+    @Override
+    public String getTextAtPoint(double px, double py) {
+        if (!visible || text == null || text.isEmpty()) return null;
+        return containsPoint(px, py) ? text : null;
+    }
 }

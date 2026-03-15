@@ -58,6 +58,12 @@ public class ArchivistScreen extends Screen {
     // Keyboard shortcut state
     private boolean shortcutConsumedThisFrame = false;
 
+    // Mouse position (updated each render frame for key handlers)
+    private int lastMouseX, lastMouseY;
+
+    // True when viewing a saved server log (prevents live data from overwriting)
+    private boolean viewingServerLog = false;
+
     // Settings tab persistence
     private int settingsActiveTab = 0;
 
@@ -288,6 +294,7 @@ public class ArchivistScreen extends Screen {
     }
 
     private void buildPluginListWindow() {
+        viewingServerLog = false;
         pluginListWindow.clearChildren();
         ServerDataCollector dc = getDataCollector();
 
@@ -1257,6 +1264,7 @@ public class ArchivistScreen extends Screen {
         serverInfoWindow.setVisible(true);
 
         // Populate plugin list
+        viewingServerLog = true;
         pluginListWindow.clearChildren();
         pluginListWindow.setTitle("Plugins (" + log.plugins.size() + ")");
         ScrollableList pList = new ScrollableList(0, 0, 160, 160);
@@ -1294,6 +1302,11 @@ public class ArchivistScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+        TextSelectionManager.beginFrame();
+        TextSelectionManager.updateMouse(mouseX, mouseY);
+
         // ── Layer 0: Render parent screen underneath ──
         if (parent != null) {
             parent.render(g, -1, -1, delta);
@@ -1345,6 +1358,9 @@ public class ArchivistScreen extends Screen {
         if (globalSearch.isOpen()) {
             globalSearch.render(g, mouseX, mouseY, delta);
         }
+
+        // ── Copy toast notification ──
+        CopyToast.render(g);
 
         // ── Layer 5: Tooltips (topmost) ──
         TooltipManager.render(g);
@@ -1437,10 +1453,12 @@ public class ArchivistScreen extends Screen {
             lastEventCount = currentSize;
         }
 
-        // Update plugin count in title
-        ServerDataCollector dc = getDataCollector();
-        if (dc != null && pluginListWindow != null) {
-            pluginListWindow.setTitle("Plugins (" + dc.getPlugins().size() + ")");
+        // Update plugin count in title (skip when viewing a saved server log)
+        if (!viewingServerLog) {
+            ServerDataCollector dc = getDataCollector();
+            if (dc != null && pluginListWindow != null) {
+                pluginListWindow.setTitle("Plugins (" + dc.getPlugins().size() + ")");
+            }
         }
 
         // Refresh inspector when a new capture arrives
@@ -1478,6 +1496,9 @@ public class ArchivistScreen extends Screen {
     *///?}
 
     private boolean handleMouseClicked(double mouseX, double mouseY, int button) {
+        // Track text selection (before widget handling)
+        TextSelectionManager.onMousePressed(mouseX, mouseY, button);
+
         // Popup overlay first (dropdown menus etc.)
         if (PopupLayer.mouseClicked(mouseX, mouseY, button)) return true;
 
@@ -1522,6 +1543,7 @@ public class ArchivistScreen extends Screen {
     @Override
     public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
         double mouseX = event.x(); double mouseY = event.y(); int button = event.button();
+        TextSelectionManager.onMouseReleased();
         if (PopupLayer.mouseReleased(mouseX, mouseY, button)) return true;
         for (int i = windows.size() - 1; i >= 0; i--) {
             if (windows.get(i).onMouseReleased(mouseX, mouseY, button)) return true;
@@ -1532,6 +1554,7 @@ public class ArchivistScreen extends Screen {
     @Override
     public boolean mouseDragged(net.minecraft.client.input.MouseButtonEvent event, double deltaX, double deltaY) {
         double mouseX = event.x(); double mouseY = event.y(); int button = event.button();
+        TextSelectionManager.onMouseDragged(mouseX, mouseY);
         if (PopupLayer.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
         for (int i = windows.size() - 1; i >= 0; i--) {
             if (windows.get(i).onMouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
@@ -1566,6 +1589,7 @@ public class ArchivistScreen extends Screen {
 
     /*@Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        TextSelectionManager.onMouseReleased();
         if (PopupLayer.mouseReleased(mouseX, mouseY, button)) return true;
         for (int i = windows.size() - 1; i >= 0; i--) {
             if (windows.get(i).onMouseReleased(mouseX, mouseY, button)) return true;
@@ -1575,6 +1599,7 @@ public class ArchivistScreen extends Screen {
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        TextSelectionManager.onMouseDragged(mouseX, mouseY);
         if (PopupLayer.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
         for (int i = windows.size() - 1; i >= 0; i--) {
             if (windows.get(i).onMouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
@@ -1647,9 +1672,32 @@ public class ArchivistScreen extends Screen {
             }
         }
 
+        // Screen-level Ctrl+C: active text selection takes priority over everything
+        if (ctrl && keyCode == GLFW.GLFW_KEY_C && TextSelectionManager.hasActiveSelection()) {
+            String selected = TextSelectionManager.getSelectedText();
+            if (selected != null && !selected.isEmpty()) {
+                Minecraft.getInstance().keyboardHandler.setClipboard(selected);
+                CopyToast.show(selected);
+                return true;
+            }
+        }
+
         for (int i = windows.size() - 1; i >= 0; i--) {
             if (windows.get(i).onKeyPressed(keyCode, scanCode, modifiers)) return true;
         }
+
+        // Screen-level Ctrl+C fallback: full text under cursor
+        if (ctrl && keyCode == GLFW.GLFW_KEY_C) {
+            for (int i = windows.size() - 1; i >= 0; i--) {
+                String text = windows.get(i).getTextAtPoint(lastMouseX, lastMouseY);
+                if (text != null && !text.isEmpty()) {
+                    Minecraft.getInstance().keyboardHandler.setClipboard(text);
+                    CopyToast.show(text);
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

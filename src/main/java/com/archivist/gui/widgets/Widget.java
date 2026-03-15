@@ -78,6 +78,11 @@ public abstract class Widget {
         return visible && px >= x && px < x + width && py >= y && py < y + height;
     }
 
+    /** Returns the copyable text at the given screen coordinates, or null if none. */
+    public String getTextAtPoint(double px, double py) {
+        return null;
+    }
+
     // ── Position & Size ─────────────────────────────────────────────────────
 
     public int getX() { return x; }
