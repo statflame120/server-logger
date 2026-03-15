@@ -539,396 +539,256 @@ public class ArchivistScreen extends Screen {
 
         themeTab.addChild(new Label(0, 0, 200, "Current: " + ColorScheme.get().name(), ColorScheme.get().accent()));
 
-        // ── Connections Tab (Unified DB + REST API) ────────────────────────
+        // ── Connections Tab (Endpoint-based) ──────────────────────────────
         Panel connTab = tabs.addTab("Connections");
-        String adapterType = cfg != null ? cfg.databaseAdapterType : "None";
         ApiConfig apiCfg = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.apiConfig : null;
         ApiSyncManager apiSync = ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.apiSyncManager : null;
 
-        connTab.addChild(new Label(0, 0, 200, "Connection type:", ColorScheme.get().textSecondary()));
-        Dropdown adapterDropdown = new Dropdown(0, 0, 200, "",
-                List.of("None", "Archivist", "REST API", "Discord Bot", "Custom"),
-                adapterType,
-                v -> {
-                    if (cfg != null) { cfg.databaseAdapterType = v; cfg.save(); }
-                    if (apiCfg != null) { apiCfg.enabled = "REST API".equals(v) || "Archivist".equals(v); apiCfg.save(); }
-                    buildSettingsWindow(); // rebuild to show type-specific fields
-                });
-        connTab.addChild(adapterDropdown);
-
-        if ("Archivist".equals(adapterType)) {
-            // ── Archivist fields (simplified REST API) ──
-            if (apiCfg != null) {
-                connTab.addChild(new Label(0, 0, 200, "Base URL:", ColorScheme.get().textSecondary()));
-                TextField baseUrlField = new TextField(0, 0, 200, "https://example.com/api");
-                baseUrlField.setText(apiCfg.baseUrl);
-                baseUrlField.setOnChange(v -> {
-                    apiCfg.baseUrl = v.replaceAll("/+$", "");
-                    apiCfg.save();
-                    if (apiSync != null) apiSync.refreshClient();
-                });
-                connTab.addChild(baseUrlField);
-
-                connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
-
-                ScrollableList headerList = new ScrollableList(0, 0, 200, 50);
-                List<String> headerNames = new ArrayList<>(apiCfg.getAuthHeaderNames());
-                for (String name : headerNames) {
-                    Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
-                    String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
-                    headerList.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
-                }
-                if (headerNames.isEmpty()) {
-                    headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
-                }
-                // Right-click to rename/remove headers
-                headerList.setOnRightClick((item, index, mx, my) -> {
-                    if (index >= headerNames.size()) return;
-                    String hdrName = headerNames.get(index);
-                    ContextMenu menu = new ContextMenu(mx, my);
-                    menu.addItem("Rename", () -> {
-                        TextField renameField = new TextField(0, 0, 140, hdrName);
-                        renameField.setText(hdrName);
-                        Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
-                            String newName = renameField.getText().trim();
-                            if (!newName.isEmpty() && !newName.equals(hdrName)) {
-                                Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
-                                String val = decoded.getOrDefault(hdrName, "");
-                                apiCfg.removeAuthHeader(hdrName);
-                                apiCfg.setAuthHeader(newName, val);
-                                apiCfg.save();
-                                if (apiSync != null) apiSync.refreshClient();
-                                buildSettingsWindow();
-                            }
-                            PopupLayer.close();
-                        });
-                        Panel renamePanel = new Panel(0, 0, 160, 40);
-                        renamePanel.addChild(renameField);
-                        renamePanel.addChild(confirmBtn);
-                        PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
-                    });
-                    menu.addItem("Remove", () -> {
-                        apiCfg.removeAuthHeader(hdrName);
-                        apiCfg.save();
-                        if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    });
-                    PopupLayer.open(menu, () -> new int[]{mx, my}, null);
-                });
-                connTab.addChild(headerList);
-
-                TextField headerName = new TextField(0, 0, 95, "Header name");
-                TextField headerValue = new TextField(0, 0, 95, "Value", true);
-                connTab.addChild(headerName);
-                connTab.addChild(headerValue);
-                connTab.addChild(new Button(0, 0, 80, "Add Header", () -> {
-                    String hn = headerName.getText().trim();
-                    String hv = headerValue.getText().trim();
-                    if (!hn.isEmpty() && !hv.isEmpty()) {
-                        apiCfg.setAuthHeader(hn, hv);
-                        apiCfg.save();
-                        if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    }
-                }));
-
-                connTab.addChild(new Label(0, 0, 200, "Reset endpoint:", ColorScheme.get().textSecondary()));
-                TextField resetEpField = new TextField(0, 0, 200, "/reset");
-                resetEpField.setText(apiCfg.resetEndpoint);
-                resetEpField.setOnChange(v -> { apiCfg.resetEndpoint = v; apiCfg.save(); });
-                connTab.addChild(resetEpField);
-
-                connTab.addChild(new Label(0, 0, 200, "Reset key:", ColorScheme.get().textSecondary()));
-                TextField resetKeyField = new TextField(0, 0, 200, "Reset key", true);
-                if (!apiCfg.getDecodedResetKey().isEmpty()) resetKeyField.setText(apiCfg.getDecodedResetKey());
-                resetKeyField.setOnChange(v -> { apiCfg.setResetKey(v); apiCfg.save(); });
-                connTab.addChild(resetKeyField);
-
-                connTab.addChild(new CheckBox(0, 0, 200, "Auto-push on leave",
-                        apiCfg.autoPush,
-                        v -> { apiCfg.autoPush = v; apiCfg.save(); }));
-
-                Label connStatus = new Label(0, 0, 200, apiCfg.isConfigured() ? "Status: Ready" : "Status: Not configured",
-                        ColorScheme.get().textSecondary());
-                connTab.addChild(connStatus);
-
-                connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Testing...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.testConnection(r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Connected (" + r.statusCode() + " OK)");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-                connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Pushing...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.pushSession(ArchivistMod.INSTANCE.dataCollector, r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Push OK (" + r.statusCode() + ")");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Push failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-                connTab.addChild(new Button(0, 0, 100, "Download Logs", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Downloading...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.downloadLogs(r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Download OK (" + r.statusCode() + ")");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Download failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-                connTab.addChild(new Button(0, 0, 100, "Reset Logs", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Resetting...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.resetLogs(r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Reset OK (" + r.statusCode() + ")");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Reset failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-            }
-        } else if ("REST API".equals(adapterType)) {
-            // ── REST API fields ──
-            if (apiCfg != null) {
-                connTab.addChild(new Label(0, 0, 200, "Base URL:", ColorScheme.get().textSecondary()));
-                TextField baseUrlField = new TextField(0, 0, 200, "https://example.com/api");
-                baseUrlField.setText(apiCfg.baseUrl);
-                baseUrlField.setOnChange(v -> {
-                    apiCfg.baseUrl = v.replaceAll("/+$", ""); // strip trailing slashes
-                    apiCfg.save();
-                    if (apiSync != null) apiSync.refreshClient();
-                });
-                connTab.addChild(baseUrlField);
-
-                connTab.addChild(new Label(0, 0, 200, "Endpoints:", ColorScheme.get().textSecondary()));
-                TextField pushEp = new TextField(0, 0, 200, "/push");
-                pushEp.setText(apiCfg.pushEndpoint);
-                pushEp.setOnChange(v -> { apiCfg.pushEndpoint = v; apiCfg.save(); });
-                connTab.addChild(pushEp);
-
-                TextField dlEp = new TextField(0, 0, 200, "/download");
-                dlEp.setText(apiCfg.downloadEndpoint);
-                dlEp.setOnChange(v -> { apiCfg.downloadEndpoint = v; apiCfg.save(); });
-                connTab.addChild(dlEp);
-
-                TextField resetEp = new TextField(0, 0, 200, "/reset");
-                resetEp.setText(apiCfg.resetEndpoint);
-                resetEp.setOnChange(v -> { apiCfg.resetEndpoint = v; apiCfg.save(); });
-                connTab.addChild(resetEp);
-
-                connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
-
-                ScrollableList headerList2 = new ScrollableList(0, 0, 200, 50);
-                List<String> headerNames2 = new ArrayList<>(apiCfg.getAuthHeaderNames());
-                for (String name : headerNames2) {
-                    Map<String, String> decoded = apiCfg.getDecodedAuthHeaders();
-                    String masked = ApiConfig.maskSecret(decoded.getOrDefault(name, ""));
-                    headerList2.addItem(name + ": " + masked, ColorScheme.get().textPrimary());
-                }
-                if (headerNames2.isEmpty()) {
-                    headerList2.addItem("(no headers)", ColorScheme.get().textSecondary());
-                }
-                // Right-click to rename/remove headers
-                headerList2.setOnRightClick((item, index, mx, my) -> {
-                    if (index >= headerNames2.size()) return;
-                    String hdrName = headerNames2.get(index);
-                    ContextMenu menu = new ContextMenu(mx, my);
-                    menu.addItem("Rename", () -> {
-                        TextField renameField = new TextField(0, 0, 140, hdrName);
-                        renameField.setText(hdrName);
-                        Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
-                            String newName = renameField.getText().trim();
-                            if (!newName.isEmpty() && !newName.equals(hdrName)) {
-                                Map<String, String> decoded2 = apiCfg.getDecodedAuthHeaders();
-                                String val = decoded2.getOrDefault(hdrName, "");
-                                apiCfg.removeAuthHeader(hdrName);
-                                apiCfg.setAuthHeader(newName, val);
-                                apiCfg.save();
-                                if (apiSync != null) apiSync.refreshClient();
-                                buildSettingsWindow();
-                            }
-                            PopupLayer.close();
-                        });
-                        Panel renamePanel = new Panel(0, 0, 160, 40);
-                        renamePanel.addChild(renameField);
-                        renamePanel.addChild(confirmBtn);
-                        PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
-                    });
-                    menu.addItem("Remove", () -> {
-                        apiCfg.removeAuthHeader(hdrName);
-                        apiCfg.save();
-                        if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    });
-                    PopupLayer.open(menu, () -> new int[]{mx, my}, null);
-                });
-                connTab.addChild(headerList2);
-
-                TextField headerName = new TextField(0, 0, 95, "Header name");
-                TextField headerValue = new TextField(0, 0, 95, "Value", true);
-                connTab.addChild(headerName);
-                connTab.addChild(headerValue);
-                connTab.addChild(new Button(0, 0, 80, "Add Header", () -> {
-                    String hn = headerName.getText().trim();
-                    String hv = headerValue.getText().trim();
-                    if (!hn.isEmpty() && !hv.isEmpty()) {
-                        apiCfg.setAuthHeader(hn, hv);
-                        apiCfg.save();
-                        if (apiSync != null) apiSync.refreshClient();
-                        buildSettingsWindow();
-                    }
-                }));
-
-                connTab.addChild(new Label(0, 0, 200, "Reset key:", ColorScheme.get().textSecondary()));
-                TextField resetKeyField = new TextField(0, 0, 200, "Reset key", true);
-                if (!apiCfg.getDecodedResetKey().isEmpty()) resetKeyField.setText(apiCfg.getDecodedResetKey());
-                resetKeyField.setOnChange(v -> { apiCfg.setResetKey(v); apiCfg.save(); });
-                connTab.addChild(resetKeyField);
-
-                connTab.addChild(new CheckBox(0, 0, 200, "Auto-push on leave",
-                        apiCfg.autoPush,
-                        v -> { apiCfg.autoPush = v; apiCfg.save(); }));
-
-                // Status label for inline feedback
-                Label connStatus = new Label(0, 0, 200, apiCfg.isConfigured() ? "Status: Ready" : "Status: Not configured",
-                        ColorScheme.get().textSecondary());
-                connTab.addChild(connStatus);
-
-                connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Testing...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.testConnection(r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Connected (" + r.statusCode() + " OK)");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-                connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Pushing...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.pushSession(ArchivistMod.INSTANCE.dataCollector, r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Push OK (" + r.statusCode() + ")");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Push failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-                connTab.addChild(new Button(0, 0, 100, "Download Logs", () -> {
-                    if (apiSync == null) return;
-                    connStatus.setText("Status: Downloading...");
-                    connStatus.setColor(ColorScheme.get().textSecondary());
-                    apiSync.downloadLogs(r -> {
-                        Minecraft.getInstance().execute(() -> {
-                            if (r.success()) {
-                                connStatus.setText("Status: Download OK (" + r.statusCode() + ")");
-                                connStatus.setColor(ColorScheme.get().eventConnect());
-                            } else {
-                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
-                                connStatus.setText("Status: Download failed (" + err + ")");
-                                connStatus.setColor(ColorScheme.get().eventError());
-                            }
-                        });
-                    });
-                }));
-            }
-        } else if (!"None".equals(adapterType)) {
-            // ── Database fields (Discord Bot, Custom) ──
-            connTab.addChild(new Label(0, 0, 200, "Webhook URL:", ColorScheme.get().textSecondary()));
-            TextField connStr = new TextField(0, 0, 200, "https://discord.com/api/webhooks/...");
-            if (cfg != null) connStr.setText(cfg.databaseConnectionString);
-            connStr.setOnChange(v -> { if (cfg != null) { cfg.databaseConnectionString = v; cfg.save(); } });
-            connTab.addChild(connStr);
-
-            connTab.addChild(new Label(0, 0, 200, "Bot Token:", ColorScheme.get().textSecondary()));
-            TextField authToken = new TextField(0, 0, 200, "Bot token (optional)", true);
-            if (cfg != null && !cfg.databaseAuthToken.isEmpty()) authToken.setText(cfg.databaseAuthToken);
-            authToken.setOnChange(v -> { if (cfg != null) { cfg.databaseAuthToken = v; cfg.save(); } });
-            connTab.addChild(authToken);
-
-            connTab.addChild(new CheckBox(0, 0, 200, "Auto-upload on log",
-                    cfg != null && cfg.autoUploadOnLog,
-                    v -> { if (cfg != null) { cfg.autoUploadOnLog = v; cfg.save(); } }));
-
-            Label dbStatus = new Label(0, 0, 200, "Status: " +
-                    (ArchivistMod.INSTANCE != null ? ArchivistMod.INSTANCE.databaseManager.getStatusMessage() : "N/A"),
-                    ColorScheme.get().textSecondary());
-            connTab.addChild(dbStatus);
-
-            connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
-                if (ArchivistMod.INSTANCE != null) {
-                    DatabaseManager dbm = ArchivistMod.INSTANCE.databaseManager;
-                    if (cfg != null) {
-                        dbStatus.setText("Status: Connecting...");
-                        dbm.connect(cfg.databaseAdapterType, cfg.databaseConnectionString, cfg.databaseAuthToken);
-                        EventBus.post(LogEvent.Type.DB_SYNC, "Testing " + cfg.databaseAdapterType + " connection...");
-                    }
-                }
-            }));
-            connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
-                if (ArchivistMod.INSTANCE == null) return;
-                DatabaseManager dbm = ArchivistMod.INSTANCE.databaseManager;
-                if (dbm.getActiveAdapter() == null) {
-                    dbStatus.setText("Status: No active adapter");
-                    dbStatus.setColor(ColorScheme.get().eventError());
-                    return;
-                }
-                dbStatus.setText("Status: Pushing...");
-                dbStatus.setColor(ColorScheme.get().textSecondary());
-                ServerLogData snapshot = ServerLogData.fromCollector(ArchivistMod.INSTANCE.dataCollector);
-                dbm.upload(snapshot);
-                EventBus.post(LogEvent.Type.DB_SYNC, "Push initiated");
-            }));
+        if (apiCfg == null) {
+            connTab.addChild(new Label(0, 0, 200, "Configuration unavailable.", ColorScheme.get().textSecondary()));
         } else {
-            connTab.addChild(new Label(0, 0, 200, "Select a connection type above.", ColorScheme.get().textSecondary()));
+            // ── Endpoint list ──
+            connTab.addChild(new Label(0, 0, 200, "— Endpoints —", ColorScheme.get().accent()));
+            ScrollableList epList = new ScrollableList(0, 0, 200, 40);
+            for (int i = 0; i < apiCfg.endpoints.size(); i++) {
+                ApiConfig.EndpointConfig ep = apiCfg.endpoints.get(i);
+                boolean selected = ep.id.equals(apiCfg.selectedEndpointId);
+                String display = ep.name + "  [" + ep.type + "]";
+                epList.addItem(display, selected ? ColorScheme.get().accent() : ColorScheme.get().listText());
+            }
+            epList.setOnSelect(idx -> {
+                if (idx >= 0 && idx < apiCfg.endpoints.size()) {
+                    apiCfg.selectedEndpointId = apiCfg.endpoints.get(idx).id;
+                    apiCfg.save();
+                    buildSettingsWindow();
+                }
+            });
+            epList.setOnRightClick((item, index, mx, my) -> {
+                if (index < 0 || index >= apiCfg.endpoints.size()) return;
+                ContextMenu menu = new ContextMenu(mx, my);
+                if (apiCfg.endpoints.size() > 1) {
+                    menu.addItem("Delete", () -> {
+                        apiCfg.removeEndpoint(apiCfg.endpoints.get(index).id);
+                        apiCfg.save();
+                        if (apiSync != null) apiSync.refreshClient();
+                        buildSettingsWindow();
+                    });
+                }
+                PopupLayer.open(menu, () -> new int[]{mx, my}, null);
+            });
+            connTab.addChild(epList);
+
+            connTab.addChild(new Button(0, 0, 100, "+ Add Endpoint", () -> {
+                apiCfg.addEndpoint();
+                apiCfg.save();
+                buildSettingsWindow();
+            }));
+
+            // ── Selected endpoint config ──
+            ApiConfig.EndpointConfig ep = apiCfg.getSelectedEndpoint();
+            if (ep != null) {
+                // Type (first so user picks before filling fields)
+                connTab.addChild(new Label(0, 0, 200, "Type:", ColorScheme.get().textSecondary()));
+                Dropdown typeDropdown = new Dropdown(0, 0, 200, "",
+                        List.of("Discord", "REST API", "Archivist"),
+                        ep.type,
+                        v -> { ep.type = v; apiCfg.save(); buildSettingsWindow(); });
+                connTab.addChild(typeDropdown);
+
+                // Name
+                connTab.addChild(new Label(0, 0, 200, "Name:", ColorScheme.get().textSecondary()));
+                TextField nameField = new TextField(0, 0, 200, "Endpoint name");
+                nameField.setText(ep.name);
+                nameField.setOnChange(v -> { ep.name = v; apiCfg.save(); });
+                connTab.addChild(nameField);
+
+                // URL
+                String urlPlaceholder = "Discord".equals(ep.type)
+                        ? "https://discord.com/api/webhooks/..."
+                        : "https://example.com/api";
+                connTab.addChild(new Label(0, 0, 200, "URL:", ColorScheme.get().textSecondary()));
+                TextField urlField = new TextField(0, 0, 200, urlPlaceholder);
+                urlField.setText(ep.url);
+                urlField.setOnChange(v -> {
+                    ep.url = v.replaceAll("/+$", "");
+                    apiCfg.save();
+                    if (apiSync != null) apiSync.refreshClient();
+                });
+                connTab.addChild(urlField);
+
+                // Endpoint paths (Archivist only — has push/download/reset sub-paths)
+                if ("Archivist".equals(ep.type)) {
+                    connTab.addChild(new Label(0, 0, 200, "Endpoints:", ColorScheme.get().textSecondary()));
+                    TextField pushEp = new TextField(0, 0, 200, "/push");
+                    pushEp.setText(ep.pushEndpoint);
+                    pushEp.setOnChange(v -> { ep.pushEndpoint = v; apiCfg.save(); });
+                    connTab.addChild(pushEp);
+
+                    TextField dlEp = new TextField(0, 0, 200, "/download");
+                    dlEp.setText(ep.downloadEndpoint);
+                    dlEp.setOnChange(v -> { ep.downloadEndpoint = v; apiCfg.save(); });
+                    connTab.addChild(dlEp);
+
+                    TextField resetEp = new TextField(0, 0, 200, "/reset");
+                    resetEp.setText(ep.resetEndpoint);
+                    resetEp.setOnChange(v -> { ep.resetEndpoint = v; apiCfg.save(); });
+                    connTab.addChild(resetEp);
+                }
+
+                // Auth headers (REST API and Archivist)
+                if (!"Discord".equals(ep.type)) {
+                    connTab.addChild(new Label(0, 0, 200, "— Auth Headers —", ColorScheme.get().accent()));
+                    ScrollableList headerList = new ScrollableList(0, 0, 200, 40);
+                    List<String> headerNames = new ArrayList<>(ep.getAuthHeaderNames());
+                    for (String hName : headerNames) {
+                        Map<String, String> decoded = ep.getDecodedAuthHeaders();
+                        String masked = ApiConfig.maskSecret(decoded.getOrDefault(hName, ""));
+                        headerList.addItem(hName + ": " + masked, ColorScheme.get().textPrimary());
+                    }
+                    if (headerNames.isEmpty()) {
+                        headerList.addItem("(no headers)", ColorScheme.get().textSecondary());
+                    }
+                    headerList.setOnRightClick((item, index, mx, my) -> {
+                        if (index >= headerNames.size()) return;
+                        String hdrName = headerNames.get(index);
+                        ContextMenu menu = new ContextMenu(mx, my);
+                        menu.addItem("Rename", () -> {
+                            TextField renameField = new TextField(0, 0, 140, hdrName);
+                            renameField.setText(hdrName);
+                            Button confirmBtn = new Button(0, 0, 60, "OK", () -> {
+                                String newName = renameField.getText().trim();
+                                if (!newName.isEmpty() && !newName.equals(hdrName)) {
+                                    Map<String, String> dec = ep.getDecodedAuthHeaders();
+                                    String val = dec.getOrDefault(hdrName, "");
+                                    ep.removeAuthHeader(hdrName);
+                                    ep.setAuthHeader(newName, val);
+                                    apiCfg.save();
+                                    if (apiSync != null) apiSync.refreshClient();
+                                    buildSettingsWindow();
+                                }
+                                PopupLayer.close();
+                            });
+                            Panel renamePanel = new Panel(0, 0, 160, 40);
+                            renamePanel.addChild(renameField);
+                            renamePanel.addChild(confirmBtn);
+                            PopupLayer.open(renamePanel, () -> new int[]{mx, my}, null);
+                        });
+                        menu.addItem("Remove", () -> {
+                            ep.removeAuthHeader(hdrName);
+                            apiCfg.save();
+                            if (apiSync != null) apiSync.refreshClient();
+                            buildSettingsWindow();
+                        });
+                        PopupLayer.open(menu, () -> new int[]{mx, my}, null);
+                    });
+                    connTab.addChild(headerList);
+
+                    TextField headerNameF = new TextField(0, 0, 95, "Header name");
+                    TextField headerValueF = new TextField(0, 0, 95, "Value", true);
+                    connTab.addChild(headerNameF);
+                    connTab.addChild(headerValueF);
+                    connTab.addChild(new Button(0, 0, 80, "Add Header", () -> {
+                        String hn = headerNameF.getText().trim();
+                        String hv = headerValueF.getText().trim();
+                        if (!hn.isEmpty() && !hv.isEmpty()) {
+                            ep.setAuthHeader(hn, hv);
+                            apiCfg.save();
+                            if (apiSync != null) apiSync.refreshClient();
+                            buildSettingsWindow();
+                        }
+                    }));
+
+                    // Reset key
+                    connTab.addChild(new Label(0, 0, 200, "Reset key:", ColorScheme.get().textSecondary()));
+                    TextField resetKeyField = new TextField(0, 0, 200, "Reset key", true);
+                    if (!ep.getDecodedResetKey().isEmpty()) resetKeyField.setText(ep.getDecodedResetKey());
+                    resetKeyField.setOnChange(v -> { ep.setResetKey(v); apiCfg.save(); });
+                    connTab.addChild(resetKeyField);
+                }
+
+                // Auto-push
+                connTab.addChild(new CheckBox(0, 0, 200, "Auto-push on leave",
+                        ep.autoPush,
+                        v -> { ep.autoPush = v; apiCfg.save(); }));
+
+                // Status + actions
+                Label connStatus = new Label(0, 0, 200, ep.isConfigured() ? "Status: Ready" : "Status: Not configured",
+                        ColorScheme.get().textSecondary());
+                connTab.addChild(connStatus);
+
+                connTab.addChild(new Button(0, 0, 100, "Test Connection", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Testing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.testConnection(r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Connected (" + r.statusCode() + " OK)");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+                connTab.addChild(new Button(0, 0, 100, "Push Now", () -> {
+                    if (apiSync == null) return;
+                    connStatus.setText("Status: Pushing...");
+                    connStatus.setColor(ColorScheme.get().textSecondary());
+                    apiSync.pushSession(ArchivistMod.INSTANCE.dataCollector, r -> {
+                        Minecraft.getInstance().execute(() -> {
+                            if (r.success()) {
+                                connStatus.setText("Status: Push OK (" + r.statusCode() + ")");
+                                connStatus.setColor(ColorScheme.get().eventConnect());
+                            } else {
+                                String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                connStatus.setText("Status: Push failed (" + err + ")");
+                                connStatus.setColor(ColorScheme.get().eventError());
+                            }
+                        });
+                    });
+                }));
+
+                // Download + Reset (REST API and Archivist)
+                if (!"Discord".equals(ep.type)) {
+                    connTab.addChild(new Button(0, 0, 100, "Download Logs", () -> {
+                        if (apiSync == null) return;
+                        connStatus.setText("Status: Downloading...");
+                        connStatus.setColor(ColorScheme.get().textSecondary());
+                        apiSync.downloadLogs(r -> {
+                            Minecraft.getInstance().execute(() -> {
+                                if (r.success()) {
+                                    connStatus.setText("Status: Download OK (" + r.statusCode() + ")");
+                                    connStatus.setColor(ColorScheme.get().eventConnect());
+                                } else {
+                                    String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                    connStatus.setText("Status: Download failed (" + err + ")");
+                                    connStatus.setColor(ColorScheme.get().eventError());
+                                }
+                            });
+                        });
+                    }));
+                    connTab.addChild(new Button(0, 0, 100, "Reset Logs", () -> {
+                        if (apiSync == null) return;
+                        connStatus.setText("Status: Resetting...");
+                        connStatus.setColor(ColorScheme.get().textSecondary());
+                        apiSync.resetLogs(r -> {
+                            Minecraft.getInstance().execute(() -> {
+                                if (r.success()) {
+                                    connStatus.setText("Status: Reset OK (" + r.statusCode() + ")");
+                                    connStatus.setColor(ColorScheme.get().eventConnect());
+                                } else {
+                                    String err = r.statusCode() > 0 ? "HTTP " + r.statusCode() : "Connection error";
+                                    connStatus.setText("Status: Reset failed (" + err + ")");
+                                    connStatus.setColor(ColorScheme.get().eventError());
+                                }
+                            });
+                        });
+                    }));
+                }
+            }
         }
 
         // ── Exceptions Tab ──────────────────────────────────────────────────
